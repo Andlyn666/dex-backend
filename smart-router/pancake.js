@@ -120,7 +120,7 @@ export async function fetchPools(req, res) {
     } else {
       throw new Error('Invalid trade type');
     }
-    
+    console.log(`Trade type: ${tradeTypeValue}, From: ${fromCurrency}, To: ${toCurrency}`);
     // Start timing the pool fetching or retrieval
     const startTimePools = performance.now();
     
