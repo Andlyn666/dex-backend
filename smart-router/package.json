@@ -11,15 +11,15 @@
         "@coral-xyz/anchor": "^0.31.1",
         "@meteora-ag/cp-amm-sdk": "^1.0.6",
         "@meteora-ag/dlmm": "^1.5.2",
-        "@pancakeswap/sdk": "5.8.12",
-        "@pancakeswap/smart-router": "7.1.2",
-        "@pancakeswap/tokens": "latest",
+        "@pancakeswap/sdk": "^5.8.12",
+        "@pancakeswap/smart-router": "^7.2.5",
+        "@pancakeswap/tokens": "^0.7.5",
         "@solana/web3.js": "^1.98.2",
         "@types/dotenv": "^6.1.1",
         "axios": "^0.21.1",
         "cors": "^2.8.5",
         "dotenv": "^16.5.0",
         "express": "^4.18.2",
-        "viem": "latest"
+        "viem": "^1.21.4"
     }
 }

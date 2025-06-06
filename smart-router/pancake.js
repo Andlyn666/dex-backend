@@ -1,5 +1,5 @@
 import { Native, ChainId, CurrencyAmount, TradeType, Token } from '@pancakeswap/sdk';
-import { V4Router } from '@pancakeswap/smart-router';
+import { InfinityRouter } from '@pancakeswap/smart-router'
 import { createPublicClient, http } from 'viem';
 import { bsc } from 'viem/chains';
 
@@ -15,7 +15,7 @@ function getClient() {
       transport: http(process.env.WEB3_PROVIDER_URI),
       batch: {
         multicall: {
-          batchSize: 256,
+          batchSize: 1024 * 200,
         },
       },
     });
@@ -59,11 +59,11 @@ export async function fetchPools(req, res) {
 
   while (attempt < maxAttempts) {
     try {
-      v3Pools = await V4Router.getV3CandidatePools({
-        clientProvider: () => getClient(),
-        currencyA: inputCurrency,
-        currencyB: outputCurrency,
-      });
+    v3Pools = await InfinityRouter.getV3CandidatePools({
+      clientProvider: () => getClient(),
+      currencyA: inputCurrency,
+      currencyB: outputCurrency,
+    })
       break; // Success, exit loop
     } catch (error) {
       attempt++;
@@ -134,13 +134,13 @@ export async function fetchPools(req, res) {
     } else {
       // Fetch new pools
       console.log('No cached pools, fetching new ones');
-      const v3Pools = await V4Router.getV3CandidatePools({
+       pools = await InfinityRouter.getV3CandidatePools({
         clientProvider: () => getClient(),
         currencyA: inputCurrency,
         currencyB: outputCurrency,
-      });
+      })
       
-      pools = [...v3Pools];
+      pools = [...pools];
       
       // Cache these pools for future use
       if (!global.poolCache) {
@@ -165,16 +165,10 @@ export async function fetchPools(req, res) {
       // Create input amount
       const inputAmount = CurrencyAmount.fromRawAmount(inputCurrency, amount);
       
-      // Get best trade
-      const trade = await V4Router.getBestTrade(
-        inputAmount, 
-        outputCurrency, 
-        tradeTypeValue, 
-        {
-          gasPriceWei: () => getClient().getGasPrice(),
-          candidatePools: pools,
-        }
-      );
+      const trade = await InfinityRouter.getBestTrade(inputAmount, outputCurrency, TradeType.EXACT_INPUT, {
+        gasPriceWei: () => client.getGasPrice(),
+        candidatePools: pools,
+      })
       
       // End timing individual trade calculation
       const endTimeIndividual = performance.now();
