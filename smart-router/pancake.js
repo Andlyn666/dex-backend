@@ -1,7 +1,9 @@
 import { Native, ChainId, CurrencyAmount, TradeType, Token } from '@pancakeswap/sdk';
+import { Pool as V3Pool, TickList } from '@pancakeswap/v3-sdk';
 import { InfinityRouter } from '@pancakeswap/smart-router'
 import { createPublicClient, http } from 'viem';
 import { bsc } from 'viem/chains';
+import BN from 'bn.js';
 
 let client = null;
 function getClient() {
@@ -40,10 +42,33 @@ function createCurrency(currency, chainId = ChainId.BSC) {
     return new Token(
       chainId,
       currency, // address
-      18,       // decimals (default to 18, most common)
-      '',       // symbol (we don't need this for routing)
-      ''        // name (we don't need this for routing)
+      18,
+      '', 
+      ''
     );
+  }
+}
+
+export async function getV3Quote(
+  pool,
+  amount,
+  isExactIn = true,
+) {
+  const { token0, token1, fee, sqrtRatioX96, liquidity, ticks, tick } = pool
+  try {
+    const v3Pool = new V3Pool(token0, token1, fee, sqrtRatioX96, liquidity, tick, ticks)
+    const [quote] = isExactIn
+      ? await v3Pool.getOutputAmount(amount.wrapped)
+      : await v3Pool.getInputAmountByExactOut(amount.wrapped)
+    // Not enough liquidity to perform the swap
+    if (quote.quotient <= 0n) {
+      return null
+    }
+
+    return quote
+  } catch (e) {
+    console.warn('No enough liquidity to perform swap', e)
+    return null
   }
 }
 
@@ -59,12 +84,12 @@ export async function fetchPools(req, res) {
 
   while (attempt < maxAttempts) {
     try {
-    v3Pools = await InfinityRouter.getV3CandidatePools({
-      clientProvider: () => getClient(),
-      currencyA: inputCurrency,
-      currencyB: outputCurrency,
-    })
-      break; // Success, exit loop
+      v3Pools = await InfinityRouter.getV3Pools({
+        clientProvider: () => getClient(),
+        pairs: [[inputCurrency, outputCurrency]]
+      })
+
+      break;
     } catch (error) {
       attempt++;
       console.error(`Attempt ${attempt} to fetch pools failed:`, error.message);
@@ -91,7 +116,7 @@ export async function fetchPools(req, res) {
         if (v3Pools.length > 0) {
           global.poolCache[`${fromCurrency}_${toCurrency}`] = v3Pools;
         }
-        
+        console.log(`Fetched ${v3Pools.length} pools for ${fromCurrency} to ${toCurrency}`);
         // Use the custom serializer for BigInt values
         res.setHeader('Content-Type', 'application/json');
         res.send(JSON.stringify(response, customSerializer));
@@ -134,14 +159,10 @@ export async function fetchPools(req, res) {
     } else {
       // Fetch new pools
       console.log('No cached pools, fetching new ones');
-       pools = await InfinityRouter.getV3CandidatePools({
+      pools = await InfinityRouter.getV3Pools({
         clientProvider: () => getClient(),
-        currencyA: inputCurrency,
-        currencyB: outputCurrency,
+        pairs: [[inputCurrency, outputCurrency]]
       })
-      
-      pools = [...pools];
-      
       // Cache these pools for future use
       if (!global.poolCache) {
         global.poolCache = {};
@@ -165,47 +186,35 @@ export async function fetchPools(req, res) {
       // Create input amount
       const inputAmount = CurrencyAmount.fromRawAmount(inputCurrency, amount);
       
-      const trade = await InfinityRouter.getBestTrade(inputAmount, outputCurrency, TradeType.EXACT_INPUT, {
-        gasPriceWei: () => client.getGasPrice(),
-        candidatePools: pools,
-      })
-      
+      const quoteResult = await getV3Quote(
+        pools[0], // Assuming we only use the first pool for simplicity
+        inputAmount,
+        tradeTypeValue === TradeType.EXACT_INPUT
+      );
+      if (!quoteResult) {
+        return {
+          inputAmount: amount,
+          error: 'Not enough liquidity for this trade'
+        };
+      }
+      console.log(`Quote for amount ${amount}:`, quoteResult);
+      const result = {}
       // End timing individual trade calculation
       const endTimeIndividual = performance.now();
       const individualTradeTime = endTimeIndividual - startTimeIndividual;
       
-      // Build result object
-      const result = {};
-      
-      if (trade && trade.inputAmount) {
-        result.amountIn = trade.inputAmount.toExact();
-      }
-      
-      if (trade && trade.outputAmount) {
-        result.amountOut = trade.outputAmount.toExact();
-      }
-      
-      if (trade && trade.executionPrice) {
-        result.executionPrice = trade.executionPrice.toSignificant(6);
-      }
-      
-      if (trade && trade.priceImpact) {
-        result.priceImpact = trade.priceImpact.toSignificant(2);
-      }
-      
-      if (trade && trade.routes) {
-        result.route = trade.routes.map(route => ({
-          path: route.path.map(token => token.symbol || token.name || token.address),
-          pools: route.pools.map(pool => (pool.fee !== undefined ? pool.fee : pool.address))
-        }));
-      }
-      
+      result.amountIn = amount;
+      const numerator = quoteResult.numerator;
+      const denominator = quoteResult.denominator;
+      const amountOut = new BN(numerator).div(new BN(denominator));
+      result.amountOut = amountOut.toString();
+      console.log(`Trade result for amount ${amount}:`, result);
       return {
         inputAmount: amount,
         calculationTimeMs: individualTradeTime.toFixed(2),
         ...result
       };
-    });
+    })
     
     // Wait for all trades to be processed
     const results = await Promise.all(tradePromises);
