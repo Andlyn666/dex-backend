@@ -83,9 +83,9 @@ async function testMeteoraSwap() {
   }
 }
 
-testMeteoraSwap();
+// testMeteoraSwap();
 // testFetchPools();
 
 // testGetQuote();
 
-// testMeteoraGetQuote();
+testMeteoraGetQuote();

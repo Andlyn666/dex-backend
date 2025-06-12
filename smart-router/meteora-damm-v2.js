@@ -5,13 +5,12 @@ import {
 } from "@meteora-ag/cp-amm-sdk";
 import BN from "bn.js";
 import bs58 from "bs58";
+import { getMint } from "@solana/spl-token";
+
 const poolCache = {};
+const tokenCache = {};
 let rpc;
 let client = null;
-let tokenADecimals = null;
-let tokenBDecimals = null;
-let tokenAProgram = null;
-let tokenBProgram = null;
 let wallet;
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -24,6 +23,17 @@ const customSerializer = (key, value) => {
   return value;
 };
 
+async function getTokenInfo(connection, mintAddress) {
+  const mintPubkey = new PublicKey(mintAddress);
+  const mintInfo = await getMint(connection, mintPubkey);
+  const accountInfo = await connection.getAccountInfo(mintPubkey);
+  const programId = accountInfo ? accountInfo.owner.toBase58() : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
+  return {
+    decimals: mintInfo.decimals,
+    tokenProgram: programId,
+  };
+}
+
 async function getClient() {
   if (!client) {
     if (!process.env.SOLANA_RPC_URL) {
@@ -32,9 +42,6 @@ async function getClient() {
     wallet = Keypair.fromSecretKey(
       new Uint8Array(bs58.decode(process.env.SOLANA_WALLET_SECRET_KEY))
     );
-    tokenAProgram = process.env.TOKEN_A_PROGRAM;
-    tokenBProgram = process.env.TOKEN_B_PROGRAM;
-    console.log("Using RPC URL:", process.env.SOLANA_RPC_URL);
     rpc = new Connection(process.env.SOLANA_RPC_URL, "confirmed");
     client = new CpAmm(rpc);
   }
@@ -53,10 +60,19 @@ async function getPool(poolAddress) {
 export async function fetchPools(req, res) {
   const { poolAddress } = req.body;
   const cpAmm = await getPool(poolAddress);
-  if (!tokenADecimals || !tokenBDecimals) {
-    // Get token decimals from the pool state
-    tokenADecimals = Number(process.env.TOKEN_A_DECIMALS);
-    tokenBDecimals = Number(process.env.TOKEN_B_DECIMALS);
+  if (!tokenCache[poolAddress]) {
+    const tokenAInfo = await getTokenInfo(rpc, cpAmm.tokenAMint);
+    const tokenBInfo = await getTokenInfo(rpc, cpAmm.tokenBMint);
+    const tokenADecimals = tokenAInfo.decimals;
+    const tokenBDecimals = tokenBInfo.decimals;
+    const tokenAProgram = tokenAInfo.tokenProgram;
+    const tokenBProgram = tokenBInfo.tokenProgram;
+    tokenCache[poolAddress] = {
+      tokenADecimals,
+      tokenBDecimals,
+      tokenAProgram,
+      tokenBProgram,
+    };
   }
   // Use the custom serializer for BigInt values
   res.setHeader('Content-Type', 'application/json');
@@ -81,11 +97,19 @@ export async function getQuote(req, res) {
   } else {
     poolState = await getPool(poolAddress);
   }
-  if (!tokenADecimals || !tokenBDecimals) {
-    // Get token decimals from the pool state
-    tokenADecimals = Number(process.env.TOKEN_A_DECIMALS);
-    tokenBDecimals = Number(process.env.TOKEN_B_DECIMALS);
-    console.log(`Token A Decimals: ${tokenADecimals}, Token B Decimals: ${tokenBDecimals}`);
+  if (!tokenCache[poolAddress]) {
+    const tokenAInfo = await getTokenInfo(rpc, poolState.tokenAMint);
+    const tokenBInfo = await getTokenInfo(rpc, poolState.tokenBMint);
+    const tokenADecimals = tokenAInfo.decimals;
+    const tokenBDecimals = tokenBInfo.decimals;
+    const tokenAProgram = tokenAInfo.tokenProgram;
+    const tokenBProgram = tokenBInfo.tokenProgram;
+    tokenCache[poolAddress] = {
+      tokenADecimals,
+      tokenBDecimals,
+      tokenAProgram,
+      tokenBProgram,
+    };
   }
   if (isExactIn) {
     getQuoteExactIn(req, res);
@@ -139,11 +163,11 @@ export async function getQuoteExactOut(req, res) {
   async function findInputForOutput(targetOut, maxTries = 20, tolerance = 1n) {
     // Estimate price from sqrtPrice (assuming 64.64 fixed point)
     const sqrtPrice = new BN(poolState.sqrtPrice);
-    const price = getPriceFromSqrtPrice(sqrtPrice, tokenADecimals, tokenBDecimals);
+    const price = getPriceFromSqrtPrice(sqrtPrice, tokenCache[poolAddress].tokenADecimals, tokenCache[poolAddress].tokenBDecimals);
     const priceFloat = Number(price);
 
     const inputTokenMint = a2b ? poolState.tokenAMint : poolState.tokenBMint;
-    let decimalDiff = a2b ? tokenADecimals - tokenBDecimals : tokenBDecimals - tokenADecimals;
+    let decimalDiff = a2b ? tokenCache[poolAddress].tokenADecimals - tokenCache[poolAddress].tokenBDecimals : tokenCache[poolAddress].tokenBDecimals - tokenCache[poolAddress].tokenADecimals;
     // Estimate input needed for target output
     let estimatedInput;
     if (a2b) {
@@ -225,8 +249,8 @@ export async function swap(req, res){
     tokenBVault: poolState.tokenBVault,
     tokenAMint: poolState.tokenAMint,
     tokenBMint: poolState.tokenBMint,
-    tokenAProgram: new PublicKey(tokenAProgram),
-    tokenBProgram: new PublicKey(tokenBProgram),
+    tokenAProgram: new PublicKey(tokenCache[poolAddress].tokenAProgram),
+    tokenBProgram: new PublicKey(tokenCache[poolAddress].tokenBProgram),
     referralTokenAccount: null,
   });
     const next_block_addrs = [
@@ -241,28 +265,6 @@ export async function swap(req, res){
   ]
   let signature;
   let lastError;
-  // for (let attempt = 1; attempt <= 3; attempt++) {
-  //   try {
-  //     signature = await sendAndConfirmTransaction(
-  //       rpc,
-  //       swapTx,
-  //       [wallet],
-  //       { skipPreflight: false, preflightCommitment: 'confirmed' }
-  //     );
-  //     break; // Success, exit loop
-  //   } catch (error) {
-  //     lastError = error;
-  //     console.error(`Swap attempt ${attempt} failed:`, error);
-  //     // Retry only if TransactionExpiredBlockheightExceededError
-  //     if (!String(error).includes('TransactionExpiredBlockheightExceededError')) {
-  //       break;
-  //     }
-  //     if (attempt < 3) {
-  //       // Optional: wait a bit before retrying
-  //       await new Promise(res => setTimeout(res, 1000));
-  //     }
-  //   }
-  // }
   for (let i = 0; i < next_block_addrs.length; i++) {
       const next_block_addr = next_block_addrs[i];
       const next_block_api = process.env.NEXT_BLOCK_API;
@@ -381,7 +383,7 @@ export async function getPoolPrice(req, res) {
       return res.status(404).json({ error: 'Pool not found' });
     }
     const sqrtPrice = new BN(poolState.sqrtPrice);
-    const price = getPriceFromSqrtPrice(sqrtPrice, tokenADecimals, tokenBDecimals);
+    const price = getPriceFromSqrtPrice(sqrtPrice, tokenCache[poolAddress].tokenADecimals, tokenCache[poolAddress].tokenBDecimals);
     res.status(200).json({ price: price.toString() });
   } catch (error) {
     console.error('Error fetching pool price:', error);
