@@ -72,6 +72,44 @@ export async function getV3Quote(
   }
 }
 
+export async function getPoolState(token0, token1, poolAddress = null) {
+  let pools = [];
+  const poolKey = `${token0}_${token1}`
+  if (poolKey && global.poolCache && global.poolCache[poolKey]) {
+    pools = global.poolCache[poolKey];
+    console.log(`Using ${pools.length} cached pools for key: ${poolKey}`);
+  }
+  else {
+    // Fetch pools from the InfinityRouter
+    try {
+      pools = await InfinityRouter.getV3Pools({
+        clientProvider: () => getClient(),
+        pairs: [[createCurrency(token0), createCurrency(token1)]]
+      });
+      // Cache these pools for future use
+      if (!global.poolCache) {
+        global.poolCache = {};
+      }
+      global.poolCache[poolKey] = pools;
+      console.log(`Fetched ${pools.length} pools for key: ${poolKey}`);
+    } catch (error) {
+      console.error('Failed to fetch pools:', error.message);
+      return null;
+    }
+  }
+  if ( poolAddress && pools.length > 0) {
+    // Find the pool by address
+    const pool = pools.find(p => p.address.toLowerCase() === poolAddress.toLowerCase());
+    if (pool) {
+      return pool;
+    }
+  } else if (pools.length > 0) {
+    // If no specific address is provided, return the first pool
+    return pools;
+  }
+  return null;
+}
+
 export async function fetchPools(req, res) {
   const { fromCurrency, toCurrency } = req.body;
 
@@ -120,6 +158,10 @@ export async function fetchPools(req, res) {
         // Use the custom serializer for BigInt values
         res.setHeader('Content-Type', 'application/json');
         res.send(JSON.stringify(response, customSerializer));
+  }
+
+  export async function getPostion(chainId, poolType, tokenId) {
+
   }
 
   export async function getQuote(req, res) {
