@@ -134,7 +134,6 @@ async getTokensOwed() {
 
   async getPositionInfo() {
     const pos = await this.contract.positions(this.tokenId);
-    console.log('Position Info:',  pos.feeGrowthInside0LastX128.toString(), pos.feeGrowthInside1LastX128.toString());
     const info = {
       nonce: pos.nonce.toString(),
       operator: pos.operator,
@@ -153,16 +152,20 @@ async getTokensOwed() {
     return info;
   }
 
-  async getPoolInfo(pos) {
+  // Use Promise.all to fetch on-chain data in parallel and wait for all before proceeding
+  async getPoolInfo() {
     if (!this.poolContract) {
       throw new Error('Pool contract not initialized');
     }
-    const poolInfo = await this.poolContract.slot0();
-    const feeGrowthGlobal0X128 = await this.poolContract.feeGrowthGlobal0X128();
-    const feeGrowthGlobal1X128 = await this.poolContract.feeGrowthGlobal1X128();
-
-    await this.getTickData(pos.tickLower);
-    await this.getTickData(pos.tickUpper);
+    const pos = await this.positionCache.get(this.tokenId);
+    // Fetch slot0 and fee growths in parallel
+    const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
+      this.poolContract.slot0(),
+      this.poolContract.feeGrowthGlobal0X128(),
+      this.poolContract.feeGrowthGlobal1X128(),
+      this.getTickData(pos.tickLower),
+      this.getTickData(pos.tickUpper)
+    ]);
     const pool = {
       sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
       tick: poolInfo.tick,
@@ -170,6 +173,9 @@ async getTokensOwed() {
       feeGrowthGlobal1X128: feeGrowthGlobal1X128,
     }
     this.poolCache.set(this.poolAddress, pool);
+    // Optionally cache tick data here if not already done in getTickData
+    this.tickCache.set(pos.tickLower, tickLowerData);
+    this.tickCache.set(pos.tickUpper, tickUpperData);
     return pool;
   }
   // Fetch tick data from the pool contract's ticks mapping and cache it
@@ -184,9 +190,10 @@ async getTokensOwed() {
 
   async poll() {
     try {
-
-      const pos = await this.getPositionInfo();
-      await this.getPoolInfo(pos);
+      await Promise.all([
+        this.getPositionInfo(),
+        this.getPoolInfo()
+      ]);
     } catch (err) {
       console.error('Error in poll:', err);
     }
@@ -210,6 +217,8 @@ export async function initWatcherByPool(poolAddress, tokenId) {
   const watcher = new PancakePositionWatcher(rpcUrl, position_manger, tokenId, poolAddress, PoolABI);
   PancakePositionWatcher.watcherInstances.set(poolAddress, watcher);
   watcher.start(3000);
+  await watcher.getPositionInfo();
+  await watcher.getPoolInfo();
   await watcher.poll();
   return watcher;
 }
