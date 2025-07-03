@@ -11,11 +11,11 @@ app.use(cors());
 // Initialize watcher for a pool and tokenId
 app.post('/init', async (req, res) => {
   try {
-    const { poolAddress, tokenId } = req.body;
+    const { dexType, poolAddress, tokenId } = req.body;
     if (!poolAddress || !tokenId) {
       return res.status(400).json({ error: 'poolAddress and tokenId are required' });
     }
-    const result = await initWatcherByPool(poolAddress, tokenId);
+    const result = await initWatcherByPool(dexType, poolAddress, tokenId);
     if (result) {
       res.json({ success: true });
     } else {

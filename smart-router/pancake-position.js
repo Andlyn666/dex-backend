@@ -140,8 +140,8 @@ async getTokensOwed() {
       token0: pos.token0,
       token1: pos.token1,
       fee: pos.fee,
-      tickLower: pos.tickLower,
-      tickUpper: pos.tickUpper,
+      tickLower: Number(pos.tickLower),
+      tickUpper: Number(pos.tickUpper),
       liquidity: pos.liquidity.toString(),
       feeGrowthInside0LastX128: pos.feeGrowthInside0LastX128.toString(),
       feeGrowthInside1LastX128: pos.feeGrowthInside1LastX128.toString(),
@@ -158,13 +158,14 @@ async getTokensOwed() {
       throw new Error('Pool contract not initialized');
     }
     const pos = await this.positionCache.get(this.tokenId);
+    console.log('Position Info:', pos);
     // Fetch slot0 and fee growths in parallel
     const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
       this.poolContract.slot0(),
       this.poolContract.feeGrowthGlobal0X128(),
       this.poolContract.feeGrowthGlobal1X128(),
-      this.getTickData(pos.tickLower),
-      this.getTickData(pos.tickUpper)
+      this.getTickData(Number(pos.tickLower)),
+      this.getTickData(Number(pos.tickUpper))
     ]);
     const pool = {
       sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
@@ -211,9 +212,14 @@ async getTokensOwed() {
   }
 }
 
-export async function initWatcherByPool(poolAddress, tokenId) {
+export async function initWatcherByPool(dexType, poolAddress, tokenId) {
   const rpcUrl = process.env.WEB3_PROVIDER_URI || 'https://bsc-dataseed.binance.org/';
-  const position_manger = process.env.POSITION_MANAGER || '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
+  let position_manger;
+  if (dexType == 'pancake') {
+    position_manger = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
+  } else if (dexType == 'uniswap') {
+    position_manger = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
+  }
   const watcher = new PancakePositionWatcher(rpcUrl, position_manger, tokenId, poolAddress, PoolABI);
   PancakePositionWatcher.watcherInstances.set(poolAddress, watcher);
   watcher.start(3000);
@@ -224,11 +230,18 @@ export async function initWatcherByPool(poolAddress, tokenId) {
 }
 
 
-const TOKEN_ID = 997991;
-const pool_address = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
-await initWatcherByPool(pool_address, TOKEN_ID);
-// Now you can get the watcher instance by pool address:
-const watcher = PancakePositionWatcher.getWatcherByPool(pool_address);
-watcher.getTokenAmount()
-watcher.getTokensOwed()
+// const TOKEN_ID = 296841;
+// const pool_address = '0xF9878A5dD55EdC120Fde01893ea713a4f032229c';
+// await initWatcherByPool('uniswap', pool_address, TOKEN_ID);
+// // Now you can get the watcher instance by pool address:
+// const watcher = PancakePositionWatcher.getWatcherByPool(pool_address);
+// watcher.getTokenAmount()
+// watcher.getTokensOwed()
 
+// const TOKEN_ID_2 = 997991;
+// const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
+// await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
+// // Now you can get the watcher instance by pool address:
+// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
+// watcher2.getTokenAmount()
+// watcher2.getTokensOwed()
