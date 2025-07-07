@@ -29,14 +29,16 @@ export class PancakePositionWatcher {
       : null;
     this.interval = null;
   }
-// return watcher instances for specific pools
-static getWatcherByPool(poolAddress) {
-  if (PancakePositionWatcher.watcherInstances.has(poolAddress)) {
-    return PancakePositionWatcher.watcherInstances.get(poolAddress);
+// return watcher instances for specific pools and tokenIds
+static getWatcherByPool(poolAddress, tokenId) {
+  const key = `${poolAddress.toLowerCase()}_${tokenId}`;
+  if (PancakePositionWatcher.watcherInstances.has(key)) {
+    return PancakePositionWatcher.watcherInstances.get(key);
   } else {
-    throw new Error(`Watcher for pool ${poolAddress} not found`);
+    throw new Error(`Watcher for pool ${poolAddress} and tokenId ${tokenId} not found`);
   }
 }
+
 async getTokenAmount() {
     // Ensure all are BigInt
     const pool = this.poolCache.get(this.poolAddress);
@@ -221,7 +223,8 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
     position_manger = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
   }
   const watcher = new PancakePositionWatcher(rpcUrl, position_manger, tokenId, poolAddress, PoolABI);
-  PancakePositionWatcher.watcherInstances.set(poolAddress, watcher);
+  const key = `${poolAddress.toLowerCase()}_${tokenId}`;
+  PancakePositionWatcher.watcherInstances.set(key, watcher);
   watcher.start(3000);
   await watcher.getPositionInfo();
   await watcher.getPoolInfo();
@@ -234,7 +237,7 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
 // const pool_address = '0xF9878A5dD55EdC120Fde01893ea713a4f032229c';
 // await initWatcherByPool('uniswap', pool_address, TOKEN_ID);
 // // Now you can get the watcher instance by pool address:
-// const watcher = PancakePositionWatcher.getWatcherByPool(pool_address);
+// const watcher = PancakePositionWatcher.getWatcherByPool(pool_address, TOKEN_ID);
 // watcher.getTokenAmount()
 // watcher.getTokensOwed()
 
@@ -242,6 +245,6 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
 // const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
 // await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
 // // Now you can get the watcher instance by pool address:
-// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
+// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2, TOKEN_ID_2);
 // watcher2.getTokenAmount()
 // watcher2.getTokensOwed()

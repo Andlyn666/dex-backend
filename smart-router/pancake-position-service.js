@@ -30,11 +30,11 @@ app.post('/init', async (req, res) => {
 // Get token amounts for a given pool
 app.get('/get-amount', async (req, res) => {
   try {
-    const { poolAddress } = req.query;
+    const { poolAddress, tokenId } = req.query;
     if (!poolAddress) {
       return res.status(400).json({ error: 'poolAddress is required' });
     }
-    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress, tokenId);
     const result = await watcher.getTokenAmount();
     res.json(result);
   } catch (error) {
@@ -46,11 +46,11 @@ app.get('/get-amount', async (req, res) => {
 // Get tokens owed for a given pool
 app.get('/get-tokens-owed', async (req, res) => {
   try {
-    const { poolAddress } = req.query;
+    const { poolAddress, tokenId} = req.query;
     if (!poolAddress) {
       return res.status(400).json({ error: 'poolAddress is required' });
     }
-    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress, tokenId);
     const result = await watcher.getTokensOwed();
     res.json(result);
   } catch (error) {
