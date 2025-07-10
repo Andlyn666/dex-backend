@@ -202,10 +202,8 @@ async poll() {
     let retries = 3;
     while (retries > 0) {
       try {
-        await Promise.all([
-          this.getPositionInfo(),
-          this.getPoolInfo()
-        ]);
+        await this.getPositionInfo();
+        await this.getPoolInfo();
         return; // Success, exit the function
       } catch (err) {
         retries--;
