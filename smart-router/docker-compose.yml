@@ -7,12 +7,12 @@ services:
       dockerfile: Dockerfile
     container_name: pancakeswap-router-service
     ports:
-      - "3000:3000"
+      - "3010:3010"
     restart: unless-stopped
     env_file:
       - .env
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -24,12 +24,12 @@ services:
     container_name: pancakeswap-position-service
     command: node pancake-position-service.js
     ports:
-      - "3100:3100"
+      - "3110:3110"
     restart: unless-stopped
     env_file:
       - .env
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3110/health"]
       interval: 30s
       timeout: 10s
       retries: 3

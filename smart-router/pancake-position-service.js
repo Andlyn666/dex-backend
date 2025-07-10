@@ -3,7 +3,7 @@ import cors from 'cors';
 import { initWatcherByPool, PancakePositionWatcher } from './pancake-position.js';
 
 const app = express();
-const port = process.env.POSITION_PORT || 3100;
+const port = process.env.POSITION_PORT || 3110;
 
 app.use(express.json());
 app.use(cors());
