@@ -199,7 +199,7 @@ async getTokensOwed(tokenId) {
   }
 
 async poll() {
-    let retries = 3;
+    let retries = 30;
     while (retries > 0) {
       try {
         await this.getPositionInfo();
@@ -258,10 +258,10 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
 // watcher.getTokensOwed(296841)
 
 
-// const TOKEN_ID_2 = 997991;
-// const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
+// const TOKEN_ID_2 = 2913131;
+// const pool_address_2 = '0x6045479ab46dF901E7c86977ED22DDeB80728165'; // Replace with your actual pool address
 // await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
 // // Now you can get the watcher instance by pool address:
 // const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2, TOKEN_ID_2);
-// watcher2.getTokenAmount(997991)
-// watcher2.getTokensOwed(997991)
+// watcher2.getTokenAmount(2913131)
+// watcher2.getTokensOwed(2913131)
