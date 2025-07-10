@@ -34,8 +34,8 @@ app.get('/get-amount', async (req, res) => {
     if (!poolAddress) {
       return res.status(400).json({ error: 'poolAddress is required' });
     }
-    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress, tokenId);
-    const result = await watcher.getTokenAmount();
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const result = await watcher.getTokenAmount(tokenId);
     res.json(result);
   } catch (error) {
     console.error('Error getting token amount:', error);
@@ -50,8 +50,8 @@ app.get('/get-tokens-owed', async (req, res) => {
     if (!poolAddress) {
       return res.status(400).json({ error: 'poolAddress is required' });
     }
-    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress, tokenId);
-    const result = await watcher.getTokensOwed();
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const result = await watcher.getTokensOwed(tokenId);
     res.json(result);
   } catch (error) {
     console.error('Error getting tokens owed:', error);
