@@ -199,7 +199,7 @@ async getTokensOwed(tokenId) {
   }
 
 async poll() {
-    let retries = 30;
+    let retries = 3;
     while (retries > 0) {
       try {
         await this.getPositionInfo();
@@ -209,8 +209,7 @@ async poll() {
         retries--;
         console.error(`Error in poll (retries left: ${retries}):`, err);
         if (retries === 0) {
-          console.error('All retries failed. Shutting down.');
-          process.exit(1);
+          console.error('Retries failed');
         }
         // Wait 1 second before retrying
         await new Promise(res => setTimeout(res, 1000));
