@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pancakeswap-router-service
+    container_name: pancakeswap-router-service-1position
     ports:
       - "3010:3010"
     restart: unless-stopped
@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pancakeswap-position-service
+    container_name: pancakeswap-position-service-1position
     command: node pancake-position-service.js
     ports:
       - "3110:3110"
