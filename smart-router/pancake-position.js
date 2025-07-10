@@ -33,11 +33,12 @@ static getWatcherByPool(poolAddress) {
   if (PancakePositionWatcher.watcherInstances.has(poolAddress)) {
     return PancakePositionWatcher.watcherInstances.get(poolAddress);
   } else {
-    throw new Error(`Watcher for pool ${poolAddress} and tokenId ${tokenId} not found`);
+    throw new Error(`Watcher for pool ${poolAddress} not found`);
   }
 }
 
 async getTokenAmount(tokenId) {
+  try {
     if (Number(tokenId) != Number(this.tokenId)) {
       console.log(`Token ID changed from ${this.tokenId} to ${tokenId}. Clearing cache.`);
       this.positionCache.delete(this.tokenId);
@@ -49,6 +50,7 @@ async getTokenAmount(tokenId) {
     if (!pool || !position) {
       throw new Error('Pool or position data not found in cache');
     }
+    
     const tickCurrent = Number(pool.tick);
     const tickLower = Number(position.tickLower);
     const tickUpper = Number(position.tickUpper);
@@ -70,6 +72,10 @@ async getTokenAmount(tokenId) {
     console.log('token0Amount:', humanToken0Amount);
     console.log('token1Amount:', humanToken1Amount);
     return { amount0: humanToken0Amount, amount1: humanToken1Amount };
+  } catch (error) {
+    console.error(`Error getting token amounts for tokenId ${this.tokenId}:`, error);
+    return {};
+  }
 }
 
 async getTokenDecimals(tokenAddress) {
@@ -89,76 +95,86 @@ async getTokenDecimals(tokenAddress) {
 }
 
 async getTokensOwed(tokenId) {
-  if (Number(tokenId) != Number(this.tokenId)) {
-    this.positionCache.delete(this.tokenId); // Clear cache for new tokenId
-    this.tokenId = Number(tokenId);
-    await this.poll();
+  try {
+    if (Number(tokenId) != Number(this.tokenId)) {
+      this.positionCache.delete(this.tokenId); // Clear cache for new tokenId
+      this.tokenId = Number(tokenId);
+      await this.poll();
+    }
+    const position = this.positionCache.get(this.tokenId);
+    const pool = this.poolCache.get(this.poolAddress);
+    const tickCurrent = pool.tick;
+    const tickLowerData = this.tickCache.get(position.tickLower) || await this.getTickData(position.tickLower);
+    const tickUpperData = this.tickCache.get(position.tickUpper) || await this.getTickData(position.tickUpper);
+    if (!tickLowerData || !tickUpperData) {
+      console.warn('Tick data not found for tickLower or tickUpper');
+      return;
+    }
+    const feeGrowthOutside0Lower = BigInt(tickLowerData.feeGrowthOutside0X128);
+    const feeGrowthOutside1Lower = BigInt(tickLowerData.feeGrowthOutside1X128);
+    const feeGrowthOutside0Upper = BigInt(tickUpperData.feeGrowthOutside0X128);
+    const feeGrowthOutside1Upper = BigInt(tickUpperData.feeGrowthOutside1X128);
+    const feeGrowthGlobal0X128 = BigInt(pool.feeGrowthGlobal0X128);
+    const feeGrowthGlobal1X128 = BigInt(pool.feeGrowthGlobal1X128);
+
+    const feeGrowthInside = TickLibrary.getFeeGrowthInside(
+      { feeGrowthOutside0X128: feeGrowthOutside0Lower, feeGrowthOutside1X128: feeGrowthOutside1Lower },
+      { feeGrowthOutside0X128: feeGrowthOutside0Upper, feeGrowthOutside1X128: feeGrowthOutside1Upper },
+      position.tickLower,
+      position.tickUpper,
+      tickCurrent,
+      feeGrowthGlobal0X128,
+      feeGrowthGlobal1X128
+    );
+
+    let [tokensOwed0, tokensOwed1] = PositionLibrary.getTokensOwed(
+      BigInt(position.feeGrowthInside0LastX128),
+      BigInt(position.feeGrowthInside1LastX128),
+      BigInt(position.liquidity),
+      BigInt(feeGrowthInside[0]),
+      BigInt(feeGrowthInside[1]));
+    tokensOwed0 = tokensOwed0 + BigInt(position.tokensOwed0);
+    tokensOwed1 = tokensOwed1 + BigInt(position.tokensOwed1);
+
+    // Fetch and cache decimals
+    const decimals0 = await this.getTokenDecimals(position.token0);
+    const decimals1 = await this.getTokenDecimals(position.token1);
+
+    // Convert to human-readable values
+    const humanOwed0 = Number(tokensOwed0) / (10 ** decimals0);
+    const humanOwed1 = Number(tokensOwed1) / (10 ** decimals1);
+
+    console.log('tokensOwed0:',`${humanOwed0}`);
+    console.log('tokensOwed1:', `${humanOwed1}`);
+    return { owed0: humanOwed0, owed1: humanOwed1 };
+  } catch (error) {
+    console.error(`Error getting tokens owed for tokenId ${this.tokenId}:`, error);
+    return {};
   }
-  const position = this.positionCache.get(this.tokenId);
-  const pool = this.poolCache.get(this.poolAddress);
-  const tickCurrent = pool.tick;
-  const tickLowerData = this.tickCache.get(position.tickLower) || await this.getTickData(position.tickLower);
-  const tickUpperData = this.tickCache.get(position.tickUpper) || await this.getTickData(position.tickUpper);
-  if (!tickLowerData || !tickUpperData) {
-    console.warn('Tick data not found for tickLower or tickUpper');
-    return;
-  }
-  const feeGrowthOutside0Lower = BigInt(tickLowerData.feeGrowthOutside0X128);
-  const feeGrowthOutside1Lower = BigInt(tickLowerData.feeGrowthOutside1X128);
-  const feeGrowthOutside0Upper = BigInt(tickUpperData.feeGrowthOutside0X128);
-  const feeGrowthOutside1Upper = BigInt(tickUpperData.feeGrowthOutside1X128);
-  const feeGrowthGlobal0X128 = BigInt(pool.feeGrowthGlobal0X128);
-  const feeGrowthGlobal1X128 = BigInt(pool.feeGrowthGlobal1X128);
-
-  const feeGrowthInside = TickLibrary.getFeeGrowthInside(
-    { feeGrowthOutside0X128: feeGrowthOutside0Lower, feeGrowthOutside1X128: feeGrowthOutside1Lower },
-    { feeGrowthOutside0X128: feeGrowthOutside0Upper, feeGrowthOutside1X128: feeGrowthOutside1Upper },
-    position.tickLower,
-    position.tickUpper,
-    tickCurrent,
-    feeGrowthGlobal0X128,
-    feeGrowthGlobal1X128
-  );
-
-  let [tokensOwed0, tokensOwed1] = PositionLibrary.getTokensOwed(
-    BigInt(position.feeGrowthInside0LastX128),
-    BigInt(position.feeGrowthInside1LastX128),
-    BigInt(position.liquidity),
-    BigInt(feeGrowthInside[0]),
-    BigInt(feeGrowthInside[1]));
-  tokensOwed0 = tokensOwed0 + BigInt(position.tokensOwed0);
-  tokensOwed1 = tokensOwed1 + BigInt(position.tokensOwed1);
-
-  // Fetch and cache decimals
-  const decimals0 = await this.getTokenDecimals(position.token0);
-  const decimals1 = await this.getTokenDecimals(position.token1);
-
-  // Convert to human-readable values
-  const humanOwed0 = Number(tokensOwed0) / (10 ** decimals0);
-  const humanOwed1 = Number(tokensOwed1) / (10 ** decimals1);
-
-  console.log('tokensOwed0:',`${humanOwed0}`);
-  console.log('tokensOwed1:', `${humanOwed1}`);
-  return { owed0: humanOwed0, owed1: humanOwed1 };
 }
 
   async getPositionInfo() {
-    const pos = await this.contract.positions(this.tokenId);
-    const info = {
-      nonce: pos.nonce.toString(),
-      operator: pos.operator,
-      token0: pos.token0,
-      token1: pos.token1,
-      fee: pos.fee,
-      tickLower: Number(pos.tickLower),
-      tickUpper: Number(pos.tickUpper),
-      liquidity: pos.liquidity.toString(),
-      feeGrowthInside0LastX128: pos.feeGrowthInside0LastX128.toString(),
-      feeGrowthInside1LastX128: pos.feeGrowthInside1LastX128.toString(),
-      tokensOwed0: pos.tokensOwed0.toString(),
-      tokensOwed1: pos.tokensOwed1.toString(),
-    };
-    this.positionCache.set(this.tokenId, info);
+    let info = {};
+    try {
+      const pos = await this.contract.positions(this.tokenId);
+      info = {
+        nonce: pos.nonce.toString(),
+        operator: pos.operator,
+        token0: pos.token0,
+        token1: pos.token1,
+        fee: pos.fee,
+        tickLower: Number(pos.tickLower),
+        tickUpper: Number(pos.tickUpper),
+        liquidity: pos.liquidity.toString(),
+        feeGrowthInside0LastX128: pos.feeGrowthInside0LastX128.toString(),
+        feeGrowthInside1LastX128: pos.feeGrowthInside1LastX128.toString(),
+        tokensOwed0: pos.tokensOwed0.toString(),
+        tokensOwed1: pos.tokensOwed1.toString(),
+      };
+      this.positionCache.set(this.tokenId, info);
+    } catch (error) {
+      console.error(`Error fetching position info for tokenId ${this.tokenId}:`, error);
+    }
     return info;
   }
 
@@ -167,25 +183,30 @@ async getTokensOwed(tokenId) {
     if (!this.poolContract) {
       throw new Error('Pool contract not initialized');
     }
-    const pos = await this.positionCache.get(this.tokenId);
-    // Fetch slot0 and fee growths in parallel
-    const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
-      this.poolContract.slot0(),
-      this.poolContract.feeGrowthGlobal0X128(),
-      this.poolContract.feeGrowthGlobal1X128(),
-      this.getTickData(Number(pos.tickLower)),
-      this.getTickData(Number(pos.tickUpper))
-    ]);
-    const pool = {
-      sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
-      tick: poolInfo.tick,
-      feeGrowthGlobal0X128: feeGrowthGlobal0X128,
-      feeGrowthGlobal1X128: feeGrowthGlobal1X128,
+    let pool = {};
+    try {
+      const pos = await this.positionCache.get(this.tokenId);
+      // Fetch slot0 and fee growths in parallel
+      const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
+        this.poolContract.slot0(),
+        this.poolContract.feeGrowthGlobal0X128(),
+        this.poolContract.feeGrowthGlobal1X128(),
+        this.getTickData(Number(pos.tickLower)),
+        this.getTickData(Number(pos.tickUpper))
+      ]);
+      pool = {
+        sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
+        tick: poolInfo.tick,
+        feeGrowthGlobal0X128: feeGrowthGlobal0X128,
+        feeGrowthGlobal1X128: feeGrowthGlobal1X128,
+      }
+      this.poolCache.set(this.poolAddress, pool);
+      // Optionally cache tick data here if not already done in getTickData
+      this.tickCache.set(pos.tickLower, tickLowerData);
+      this.tickCache.set(pos.tickUpper, tickUpperData);
+    } catch (error) {
+      console.error(`Error fetching pool info for tokenId ${this.tokenId}:`, error);
     }
-    this.poolCache.set(this.poolAddress, pool);
-    // Optionally cache tick data here if not already done in getTickData
-    this.tickCache.set(pos.tickLower, tickLowerData);
-    this.tickCache.set(pos.tickUpper, tickUpperData);
     return pool;
   }
   // Fetch tick data from the pool contract's ticks mapping and cache it
@@ -199,7 +220,7 @@ async getTokensOwed(tokenId) {
   }
 
 async poll() {
-    let retries = 3;
+    let retries = 5;
     while (retries > 0) {
       try {
         await this.getPositionInfo();
@@ -257,10 +278,10 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
 // watcher.getTokensOwed(296841)
 
 
-// const TOKEN_ID_2 = 2913131;
+// const TOKEN_ID_2 = 2913676;
 // const pool_address_2 = '0x6045479ab46dF901E7c86977ED22DDeB80728165'; // Replace with your actual pool address
 // await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
 // // Now you can get the watcher instance by pool address:
 // const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2, TOKEN_ID_2);
-// watcher2.getTokenAmount(2913131)
-// watcher2.getTokensOwed(2913131)
+// watcher2.getTokenAmount(2913676)
+// watcher2.getTokensOwed(2913676)
