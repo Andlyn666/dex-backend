@@ -1,3 +1,4 @@
-
-smart-router/node_modules/
+/node_modules/
+dashboard/dashboard.log
+dashboard/config.json
 .env

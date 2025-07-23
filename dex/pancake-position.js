@@ -1,23 +1,24 @@
 import dotenv from 'dotenv'
 import { ethers } from 'ethers';
-import NonfungiblePositionManagerABI from './abi/NonfungiblePositionManager.json' assert { type: 'json' };
+import NonfungiblePositionManagerABI from './abi/NonfungiblePositionManager.json' with { type: 'json' };
 import { PositionMath, PositionLibrary, TickLibrary } from '@pancakeswap/v3-sdk';
-import PoolABI from './abi/PancakeV3Pool.json' assert { type: 'json' };
+import PoolABI from './abi/PancakeV3Pool.json' with { type: 'json' };
 import e from 'express';
 
 dotenv.config();
 
 export class PancakePositionWatcher {
   static watcherInstances = new Map();
-  constructor(rpcUrl, positionManager, tokenId, poolAddress, poolAbi) {
+  constructor(rpcUrl, dexType, positionManager, tokenId, poolAddress, poolAbi) {
     this.rpcUrl = rpcUrl;
+    this.dexType = dexType
     this.positionManager = positionManager;
     this.tokenId = tokenId;
     this.poolCache = new Map(); // Cache for pool data
     this.positionCache = new Map();
     this.tickCache = new Map(); // Cache for tick data
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
-    this.contract = new ethers.Contract(
+    this.positionMgrcontract = new ethers.Contract(
       positionManager,
       NonfungiblePositionManagerABI,
       this.provider
@@ -29,11 +30,39 @@ export class PancakePositionWatcher {
       : null;
     this.interval = null;
   }
+
+static async getAllWatcherInfo() {
+  const watcherInfo = [];
+  for (const [key, watcher] of PancakePositionWatcher.watcherInstances.entries()) {
+    try {
+      watcherInfo.push({
+        "poolAddress": watcher.poolAddress,
+        "tokenId": watcher.tokenId,
+        "dexType": watcher.dexType,
+
+      });
+    }
+    catch (error) {
+      console.error(`Error fetching info for watcher ${key}:`, error);
+    }
+  }
+  return watcherInfo;
+}
+
 // return watcher instances for specific pools and tokenIds
 static getWatcherByPool(poolAddress, tokenId) {
   const key = `${poolAddress.toLowerCase()}_${tokenId}`;
   if (PancakePositionWatcher.watcherInstances.has(key)) {
     return PancakePositionWatcher.watcherInstances.get(key);
+  } else {
+    throw new Error(`Watcher for pool ${poolAddress} and tokenId ${tokenId} not found`);
+  }
+}
+
+static getPositionInfo(poolAddress, tokenId) {
+  const key = `${poolAddress.toLowerCase()}_${tokenId}`;
+  if (PancakePositionWatcher.watcherInstances.has(key)) {
+    return PancakePositionWatcher.watcherInstances.get(key).positionCache.get(this.tokenId)
   } else {
     throw new Error(`Watcher for pool ${poolAddress} and tokenId ${tokenId} not found`);
   }
@@ -81,7 +110,7 @@ async getTokenDecimals(tokenAddress) {
     ];
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
     const decimals = await tokenContract.decimals();
-    this.decimalCache.set(tokenAddress,Number(decimals));
+    this.decimalCache.set(tokenAddress, Number(decimals));
     return Number(decimals);
 }
 
@@ -135,7 +164,7 @@ async getTokensOwed() {
 }
 
   async getPositionInfo() {
-    const pos = await this.contract.positions(this.tokenId);
+    const pos = await this.positionMgrcontract.positions(this.tokenId);
     const info = {
       nonce: pos.nonce.toString(),
       operator: pos.operator,
@@ -160,7 +189,6 @@ async getTokensOwed() {
       throw new Error('Pool contract not initialized');
     }
     const pos = await this.positionCache.get(this.tokenId);
-    console.log('Position Info:', pos);
     // Fetch slot0 and fee growths in parallel
     const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
       this.poolContract.slot0(),
@@ -216,13 +244,13 @@ async getTokensOwed() {
 
 export async function initWatcherByPool(dexType, poolAddress, tokenId) {
   const rpcUrl = process.env.WEB3_PROVIDER_URI || 'https://bsc-dataseed.binance.org/';
-  let position_manger;
+  let positionManger;
   if (dexType == 'pancake') {
-    position_manger = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
+    positionManger = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
   } else if (dexType == 'uniswap') {
-    position_manger = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
+    positionManger = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
   }
-  const watcher = new PancakePositionWatcher(rpcUrl, position_manger, tokenId, poolAddress, PoolABI);
+  const watcher = new PancakePositionWatcher(rpcUrl, dexType, positionManger, tokenId, poolAddress, PoolABI);
   const key = `${poolAddress.toLowerCase()}_${tokenId}`;
   PancakePositionWatcher.watcherInstances.set(key, watcher);
   watcher.start(3000);
@@ -233,18 +261,18 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
 }
 
 
-// const TOKEN_ID = 296841;
-// const pool_address = '0xF9878A5dD55EdC120Fde01893ea713a4f032229c';
-// await initWatcherByPool('uniswap', pool_address, TOKEN_ID);
-// // Now you can get the watcher instance by pool address:
-// const watcher = PancakePositionWatcher.getWatcherByPool(pool_address, TOKEN_ID);
-// watcher.getTokenAmount()
-// watcher.getTokensOwed()
+const TOKEN_ID = 296841;
+const pool_address = '0xF9878A5dD55EdC120Fde01893ea713a4f032229c';
+await initWatcherByPool('uniswap', pool_address, TOKEN_ID);
+// Now you can get the watcher instance by pool address:
+const watcher = PancakePositionWatcher.getWatcherByPool(pool_address, TOKEN_ID);
+watcher.getTokenAmount()
+watcher.getTokensOwed()
 
-// const TOKEN_ID_2 = 997991;
-// const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
-// await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
-// // Now you can get the watcher instance by pool address:
-// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2, TOKEN_ID_2);
-// watcher2.getTokenAmount()
-// watcher2.getTokensOwed()
+const TOKEN_ID_2 = 997991;
+const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
+await initWatcherByPool('pancake', pool_address_2, TOKEN_ID_2);
+// Now you can get the watcher instance by pool address:
+const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2, TOKEN_ID_2);
+watcher2.getTokenAmount()
+watcher2.getTokensOwed()

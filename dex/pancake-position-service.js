@@ -59,6 +59,16 @@ app.get('/get-tokens-owed', async (req, res) => {
   }
 });
 
+app.get('/get-all-watcher-info', async (req, res) => {
+  try {
+    const watchers = await PancakePositionWatcher.getAllWatcherInfo();
+    res.json(watchers);
+  } catch (error) {
+    console.error('Error getting all watchers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
