@@ -2,3 +2,4 @@
 dashboard/dashboard.log
 dashboard/config.json
 .env
+dashboard/.DS_Store

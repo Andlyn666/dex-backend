@@ -37,12 +37,12 @@ export async function getBlockTimestamp( provider: any, blockNumber: number): Pr
 // 各链常见quote token优先级列表（高优先级在前）
 const QUOTE_TOKEN_PRIORITY: { [chain: string]: string[] } = {
     bsc: [
-        "0x55d398326f99059fF775485246999027B3197955", // USDT
-        "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", // USDC
-        "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", // DAI
-        "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d", //USD1
-        "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
-        "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", // WETH
+        "0x55d398326f99059fF775485246999027B3197955".toLowerCase(), // USDT
+        "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d".toLowerCase(), // USDC
+        "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3".toLowerCase(), // DAI
+        "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d".toLowerCase(), //USD1
+        "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c".toLowerCase(), // WBNB
+        "0x2170Ed0880ac9A755fd29B2688956BD959F933F8".toLowerCase(), // WETH
     ],
 };
 
@@ -104,4 +104,17 @@ export function convertBlockTimetoDate(blockTime: string | number): string {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+}
+  const decimalCache = new Map();
+  export async function getTokenDecimals(tokenAddress, provider) {
+    if (decimalCache.has(tokenAddress)) {
+        return Number(decimalCache.get(tokenAddress));
+    }
+    const ERC20_ABI = [
+        "function decimals() view returns (uint8)"
+    ];
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const decimals = await tokenContract.decimals();
+    decimalCache.set(tokenAddress, Number(decimals));
+    return Number(decimals);
 }

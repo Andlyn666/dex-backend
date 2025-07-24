@@ -1,10 +1,13 @@
-import { EventLog } from "ethers";
+import { EventLog, ethers } from "ethers";
 import pLimit from "p-limit";
-import { getBlockTimestamp, convertBlockTimetoDate, withRetry } from "./utils";
+import { getBlockTimestamp, convertBlockTimetoDate, withRetry, getTokenDecimals } from "./utils";
+import { getTokensOwed, getTokenAmount } from "./call-position-api"
 import { updatePositionRecord, getAllActivePositions, db } from "./db/utils";
 import { LpOperationParams, LpStrategySnapshotParams } from "./db/type";
-import { getTokenPriceManager } from "./token-price";
+import { getTokenPriceManager } from "./token";
 import { BSC_CG_NAME } from "./constant";
+import logger from "./logger";
+import { getPoolNameByDexType } from "./utils";
 
 export async function insertOperationHisRecord(provider, priceMgr, pm, position, fromBlock, toBlock, filter, opType) {
     const chunkSize = 10000;
@@ -14,7 +17,7 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
         const incEvents = await withRetry(() => pm.queryFilter(filter, start, end)) as EventLog[];
         for (const e of incEvents) {
             const blockTime = await withRetry(() => getBlockTimestamp(provider, e.blockNumber));
-            const [basePrice, quotePrice] = await Promise.all([
+            const [basePrice, quotePrice] = opType == 'Burn' ? [0, 0] : await Promise.all([
                 priceMgr.fetchTokenPrice(position.baseTokenAddress, convertBlockTimetoDate(blockTime)),
                 priceMgr.fetchTokenPrice(position.quoteTokenAddress, convertBlockTimetoDate(blockTime))
             ]);
@@ -25,9 +28,9 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
                 pool_address: position.poolAddress,
                 base_token_address: position.baseTokenAddress,
                 quote_token_address: position.quoteTokenAddress,
-                base_amount: e.args.amount0.toString(),
+                base_amount: opType == 'Burn' ? 0 : e.args.amount0.toString(),
                 base_price_usd: basePrice,
-                quote_amount: e.args.amount1.toString(),
+                quote_amount: opType == 'Burn' ? 0 : e.args.amount1.toString(),
                 quote_price_usd: quotePrice,
                 tx_hash: e.transactionHash,
                 block_number: e.blockNumber
@@ -51,7 +54,7 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
     }
 }
 
-export async function trackLpTokenHistory(provider, pm, positions: any[], fromBlock: number, toBlock: number) {
+export async function trackLpTokenHistory(provider, pm: ethers.Contract, positions: any[], fromBlock: number, toBlock: number, instance) {
     const priceMgr = getTokenPriceManager(BSC_CG_NAME);
     const limit = pLimit(10);
     await Promise.all(positions.map(position =>
@@ -60,20 +63,24 @@ export async function trackLpTokenHistory(provider, pm, positions: any[], fromBl
             const filterInc = pm.filters.IncreaseLiquidity(position.tokenId);
             const filterDec = pm.filters.DecreaseLiquidity(position.tokenId);
             const filterCol = pm.filters.Collect(position.tokenId);
+            const burnCol = pm.filters.Transfer(instance.users_to_monitor, ethers.ZeroAddress);
             await Promise.all([
                 insertOperationHisRecord(provider, priceMgr, pm, position, fromBlockNew, toBlock, filterInc, 'IncreaseLiquidity'),
                 insertOperationHisRecord(provider, priceMgr, pm, position, fromBlockNew, toBlock, filterDec, 'DecreaseLiquidity'),
-                insertOperationHisRecord(provider, priceMgr, pm, position, fromBlockNew, toBlock, filterCol, 'Collect')
+                insertOperationHisRecord(provider, priceMgr, pm, position, fromBlockNew, toBlock, filterCol, 'Collect'),
+                // insertOperationHisRecord(provider, priceMgr, pm, position, fromBlockNew, toBlock, burnCol, 'Burn')
             ]);
         })
     ));
     console.log("\n✅ LP token operation history extraction completed.");
 }
 
-export async function updatePositionSummury(chain: string, pm: any, fromBlock: number, latestBlock: number) {
-    const allActivePositions = await getAllActivePositions();
+export async function updatePositionSummary(provider, dexType) {
+    logger.info(`🔄 Updating position ${dexType} summary...`);
+    const poolName = getPoolNameByDexType(dexType);
+    const allActivePositions = await getAllActivePositions(poolName);
     for (const position of allActivePositions) {
-        const { poolAddress, tokenId, poolName } = position;
+        const { poolAddress, tokenId } = position;
 
         // 查询所有操作
         const ops = db.prepare(
@@ -87,45 +94,95 @@ export async function updatePositionSummury(chain: string, pm: any, fromBlock: n
         let total_remove_base_value_usd = 0, total_remove_quote_value_usd = 0;
         let total_fee_claim_base_amount = 0, total_fee_claim_quote_amount = 0;
         let total_fee_claim_base_value_usd = 0, total_fee_claim_quote_value_usd = 0;
+        let unclaimed_fee_base_amount = 0, unclaimed_fee_quote_amount = 0;
+        let unclaimed_fee_base_value_usd = 0, unclaimed_fee_quote_value_usd = 0;
+        let unclaimed_fee_value_usd = 0, current_base_amount = 0;
+        let current_quote_amount = 0, current_position_value_usd = 0;
 
+        const priceMgr = getTokenPriceManager(BSC_CG_NAME);
+        const date = convertBlockTimetoDate(Date.now()); // 使用当前时间作为日期
+        // get current base and quote prices
+        const [basePrice, quotePrice, baseDecimals, quoteDecimals, [tokenOwed0, tokenOwed1], [amount1, amount2]] = await Promise.all([
+            priceMgr.fetchTokenPrice(position.baseTokenAddress, date),
+            priceMgr.fetchTokenPrice(position.quoteTokenAddress, date),
+            getTokenDecimals(position.baseTokenAddress, provider),
+            getTokenDecimals(position.quoteTokenAddress, provider),
+            getTokensOwed(poolAddress, tokenId, dexType),
+            getTokenAmount(poolAddress, tokenId, dexType)
+
+        ]);
         for (const op of ops) {
             if (op.op_type === "IncreaseLiquidity") {
-                total_add_base_amount += op.base_amount || 0;
-                total_add_quote_amount += op.quote_amount || 0;
-                total_add_base_value_usd += (op.base_amount || 0) * (op.base_price_usd || 0);
-                total_add_quote_value_usd += (op.quote_amount || 0) * (op.quote_price_usd || 0);
+                total_add_base_amount += op.base_amount / (10 ** baseDecimals);
+                total_add_quote_amount += op.quote_amount / (10 ** quoteDecimals);
+                total_add_base_value_usd += (op.base_amount / (10 ** baseDecimals)) * (op.base_price_usd || 0);
+                total_add_quote_value_usd += (op.quote_amount / (10 ** quoteDecimals)) * (op.quote_price_usd || 0);
             }
             if (op.op_type === "DecreaseLiquidity") {
-                total_remove_base_amount += op.base_amount || 0;
-                total_remove_quote_amount += op.quote_amount || 0;
-                total_remove_base_value_usd += (op.base_amount || 0) * (op.base_price_usd || 0);
-                total_remove_quote_value_usd += (op.quote_amount || 0) * (op.quote_price_usd || 0);
+                total_remove_base_amount += op.base_amount / (10 ** baseDecimals);
+                total_remove_quote_amount += op.quote_amount / (10 ** quoteDecimals);
+
             }
             if (op.op_type === "Collect") {
-                total_fee_claim_base_amount += op.base_amount || 0;
-                total_fee_claim_quote_amount += op.quote_amount || 0;
-                total_fee_claim_base_value_usd += (op.base_amount || 0) * (op.base_price_usd || 0);
-                total_fee_claim_quote_value_usd += (op.quote_amount || 0) * (op.quote_price_usd || 0);
+                total_fee_claim_base_amount += op.base_amount / (10 ** baseDecimals);
+                total_fee_claim_quote_amount += op.quote_amount / (10 ** quoteDecimals);
+            }
+            if (op.op_type === "Burn") {
+                
             }
         }
+        total_remove_base_value_usd = total_remove_base_amount * basePrice || 0;
+        total_remove_quote_value_usd = total_remove_quote_amount * quotePrice || 0;
+        total_fee_claim_base_value_usd = total_fee_claim_base_amount * basePrice || 0;
+        total_fee_claim_quote_value_usd = total_fee_claim_quote_amount * quotePrice || 0;
+        
+        unclaimed_fee_base_amount = tokenOwed0.address === position.baseTokenAddress ? tokenOwed0.amount : tokenOwed1.amount;
+        unclaimed_fee_quote_amount = tokenOwed0.address === position.quoteTokenAddress ? tokenOwed0.amount : tokenOwed1.amount;
+        current_base_amount = amount1.address === position.baseTokenAddress ? amount1.amount : amount2.amount;
+        current_quote_amount = amount1.address === position.quoteTokenAddress ? amount1.amount : amount2.amount;
+        current_position_value_usd = (current_base_amount * basePrice) + (current_quote_amount * quotePrice) || 0;
+        
+        const total_add_value_usd = total_add_base_value_usd + total_add_quote_value_usd;
+        const total_fee_claim_value_usd = total_fee_claim_base_value_usd + total_fee_claim_quote_value_usd;
+        const total_remove_value_usd = total_remove_base_value_usd + total_remove_quote_value_usd;
+        const pnl_total_usd = current_position_value_usd + unclaimed_fee_value_usd +total_fee_claim_value_usd - (total_add_value_usd);
+        const pnl_total_percentage = total_add_value_usd > 0 ? (pnl_total_usd / total_add_value_usd) * 100 : 0;
 
+        unclaimed_fee_base_value_usd = unclaimed_fee_base_amount * basePrice || 0;
+        unclaimed_fee_quote_value_usd = unclaimed_fee_quote_amount * quotePrice || 0;
+        unclaimed_fee_value_usd = unclaimed_fee_base_value_usd + unclaimed_fee_quote_value_usd;
         const params: LpStrategySnapshotParams = {
             query_time: new Date().toISOString(),
             pool_address: poolAddress,
             position_token_id: tokenId,
             pool_name: poolName,
+            base_price_usd: basePrice,
+            quote_price_usd: quotePrice,
             total_add_base_amount,
             total_add_quote_amount,
             total_add_base_value_usd,
             total_add_quote_value_usd,
+            total_add_value_usd,
             total_remove_base_amount,
             total_remove_quote_amount,
             total_remove_base_value_usd,
             total_remove_quote_value_usd,
+            total_remove_value_usd,
             total_fee_claim_base_amount,
             total_fee_claim_quote_amount,
             total_fee_claim_base_value_usd,
             total_fee_claim_quote_value_usd,
+            total_fee_claim_value_usd,
+            unclaimed_fee_base_amount,
+            unclaimed_fee_quote_amount,
+            unclaimed_fee_base_value_usd,
+            unclaimed_fee_quote_value_usd,
+            unclaimed_fee_value_usd,
+            current_base_amount,
+            current_quote_amount,
+            current_position_value_usd,
+            pnl_total_usd,
+            pnl_total_percentage,
         };
 
         await updatePositionRecord(params);

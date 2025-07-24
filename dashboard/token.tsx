@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
-import { withRetry } from './utils';
 import axios from 'axios';
+import { ethers } from 'ethers';
+import { withRetry } from './utils';
 import logger from './logger';
 dotenv.config();
 
@@ -14,6 +15,7 @@ export class PriceManager {
     this.prices = {};
     this.key = process.env.CG_API_KEY ? process.env.CG_API_KEY : '';
   }
+
     async fetchCoinList() {
     const url = 'https://pro-api.coingecko.com/api/v3/coins/list?include_platform=true';
     const options = {
@@ -60,7 +62,7 @@ export class PriceManager {
       timeout: 50000
     };
     try {
-        const response = await axios.get(url, options);
+        const response = await withRetry(() => axios.get(url, options), 5, 2000);
         const result = await response.data;
         const usdPrice = result.market_data?.current_price?.usd || 0;
         return usdPrice;

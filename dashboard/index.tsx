@@ -3,7 +3,8 @@ import pLimit from "p-limit";
 import logger from "./logger";
 import { getParamValue, getAllActivePositions } from "./db/utils";
 import { insertBasicPositionRecord} from "./position";
-import { trackLpTokenHistory, updatePositionSummury } from "./position-operation";
+import { trackLpTokenHistory, updatePositionSummary } from "./position-operation";
+import { getPoolNameByDexType } from "./utils";
 import config from "./config.json" with { type: "json" };
 import PositionManagerABI from "../dex/abi/NonfungiblePositionManager.json" with { type: 'json' };
 import dotenv  from "dotenv";
@@ -35,11 +36,16 @@ async function processInstancePositions(instance: any, provider: ethers.Provider
             })
         ));
     }));
+    logger.info(`  ✅ Finished processing positions for ${instance.chain}`);
 }
 
-async function updatePositionOperations(provider: any, pm: any, fromBlock: number, latestBlock: number) {
-    const allActivePositions = await getAllActivePositions();
-    await trackLpTokenHistory(provider, pm, allActivePositions, fromBlock, latestBlock);
+async function updatePositionOperations(provider: any, pm: any, fromBlock: number, latestBlock: number, instance: any) {
+
+    logger.info('🔄 Updating position operations...');
+    const poolName = getPoolNameByDexType(instance.dex_type);
+    const allActivePositions = await getAllActivePositions(poolName);
+    await trackLpTokenHistory(provider, pm, allActivePositions, fromBlock, latestBlock, instance);
+    logger.info('✅ Position operations updated successfully');
 }
 
 
@@ -51,8 +57,8 @@ async function main() {
       const fromBlock = Number(await getParamValue("last_listen_block_bsc")) || 52000000;
       const latestBlock = 53000000;
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
-      await updatePositionOperations(provider, pm, fromBlock, latestBlock);
-      await updatePositionSummury(instance.chain, pm, fromBlock, latestBlock);
+      await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
+      await updatePositionSummary(provider, instance.dex_type);
     }
 }
 

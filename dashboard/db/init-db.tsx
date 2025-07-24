@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS lp_strategy_snapshots (
     pnl_total_usd REAL,
     pnl_total_percentage REAL,
     is_active boolean,
-    block_number INTEGER
+    block_number INTEGER,
+    end_block_number INTEGER,
+    UNIQUE(pool_address, pool_name, position_token_id)
 );
 `);
 

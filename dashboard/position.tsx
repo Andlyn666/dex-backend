@@ -29,7 +29,7 @@ export async function insertBasicPositionRecord(provider: any, tokenId: string, 
         instance.chain
     );
     const params: LpStrategySnapshotParams = {
-        pool_address: positionInfo.token0,
+        pool_address: positionInfo.poolAddress,
         position_token_id: Number(tokenId),
         pool_name: poolName,
         pair_name: positionInfo.pairName,

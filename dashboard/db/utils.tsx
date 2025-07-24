@@ -83,10 +83,10 @@ export async function insertOperationRecord(params: LpOperationParams) {
     }
 }
 
-export async function getAllActivePositions(): Promise<any[]> {
+export async function getAllActivePositions(poolName): Promise<any[]> {
     try {
-        const query = `SELECT position_token_id, pool_name, pool_address, base_token_address, quote_token_address FROM lp_strategy_snapshots WHERE is_active = 1`;
-        const rows = db.prepare(query).all();
+        const query = `SELECT position_token_id, pool_name, pool_address, base_token_address, quote_token_address FROM lp_strategy_snapshots WHERE is_active = 1 AND pool_name = ?`
+        const rows = db.prepare(query).all(poolName);
         return rows.map(row => ({
             tokenId: row.position_token_id,
             poolName: row.pool_name,

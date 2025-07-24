@@ -43,6 +43,38 @@ app.get('/get-amount', async (req, res) => {
   }
 });
 
+// Get token amounts for a given pool
+app.get('/get-amount-with-address', async (req, res) => {
+  try {
+    const { poolAddress, tokenId } = req.query;
+    if (!poolAddress) {
+      return res.status(400).json({ error: 'poolAddress is required' });
+    }
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const result = await watcher.getTokenAmountWithAddress(tokenId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting token amount with address:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get token amounts for a given pool
+app.get('/get-amount', async (req, res) => {
+  try {
+    const { poolAddress, tokenId } = req.query;
+    if (!poolAddress) {
+      return res.status(400).json({ error: 'poolAddress is required' });
+    }
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const result = await watcher.getTokenAmount(tokenId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting token amount:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get tokens owed for a given pool
 app.get('/get-tokens-owed', async (req, res) => {
   try {
@@ -59,6 +91,24 @@ app.get('/get-tokens-owed', async (req, res) => {
   }
 });
 
+// Get tokens owed for a given pool
+app.get('/get-tokens-owed-with-address', async (req, res) => {
+  try {
+    const { poolAddress, tokenId} = req.query;
+    if (!poolAddress) {
+      return res.status(400).json({ error: 'poolAddress is required' });
+    }
+    const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
+    const result = await watcher.getTokensOwedWithAddress(tokenId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting tokens owed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
 app.get('/get-all-watcher-info', async (req, res) => {
   try {
     const watchers = await PancakePositionWatcher.getAllWatcherInfo();
@@ -68,6 +118,8 @@ app.get('/get-all-watcher-info', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
 
 // Health check
 app.get('/health', (req, res) => {
