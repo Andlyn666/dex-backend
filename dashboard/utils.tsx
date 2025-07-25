@@ -114,7 +114,7 @@ export function convertBlockTimetoDate(blockTime: string | number): string {
         "function decimals() view returns (uint8)"
     ];
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-    const decimals = await tokenContract.decimals();
+    const decimals = await withRetry(() => tokenContract.decimals());
     decimalCache.set(tokenAddress, Number(decimals));
     return Number(decimals);
 }

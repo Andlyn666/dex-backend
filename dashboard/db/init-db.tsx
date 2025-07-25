@@ -69,12 +69,15 @@ CREATE TABLE IF NOT EXISTS lp_operations (
     position_token_id INTEGER,
     base_token_address TEXT,
     quote_token_address TEXT,
+    base_decimals INTEGER,
+    quote_decimals INTEGER,
     base_amount REAL,
     base_price_usd REAL,
     quote_amount REAL,
     quote_price_usd REAL,
     tx_hash TEXT,
-    block_number INTEGER
+    block_number INTEGER,
+    UNIQUE(pool_address, position_token_id, tx_hash, op_type)
 );
 `);
 

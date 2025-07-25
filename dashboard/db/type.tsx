@@ -53,6 +53,8 @@ export type LpOperationParams = {
   position_token_id: number;
   base_token_address: string;
   quote_token_address: string;
+  base_decimals?: number;
+  quote_decimals?: number;
   base_amount?: number;
   base_price_usd?: number;
   quote_amount?: number;

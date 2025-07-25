@@ -4,3 +4,4 @@ dashboard/db/lp_dashboard.db
 dashboard/config.json
 .env
 dashboard/.DS_Store
+dashboard/db/dashboard.log

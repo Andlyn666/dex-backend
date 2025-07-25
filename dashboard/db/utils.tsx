@@ -102,13 +102,17 @@ export async function getAllActivePositions(poolName): Promise<any[]> {
     }
 }
 
-export async function updateParamValue(paramKey: string, paramValue: string): Promise<boolean> {
+export async function upsertParamValue(paramKey: string, paramValue: string): Promise<boolean> {
     try {
-        const updateQuery = `UPDATE lp_parameters SET param_value = ? WHERE param_key = ?`;
-        db.prepare(updateQuery).run(paramValue, paramKey);
+        const upsertQuery = `
+            INSERT INTO lp_parameters (param_key, param_value)
+            VALUES (?, ?)
+            ON CONFLICT(param_key) DO UPDATE SET param_value = excluded.param_value
+        `;
+        db.prepare(upsertQuery).run(paramKey, paramValue);
         return true;
     } catch (error) {
-        logger.error('Error updating parameter value:', error);
+        logger.error('Error upserting parameter value:', error);
         return false;
     }
 }
