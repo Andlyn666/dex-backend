@@ -88,7 +88,7 @@ async getTokenAmountWithAddress(tokenId) {
     const position = this.positionCache.get(this.tokenId);
     const pool = this.poolCache.get(this.poolAddress);
     if (!pool || !position) {
-      throw new Error('Pool or position data not found in cache', pool, position);
+      return [{address: '', amount: 0}, {address: '', amount: 0}];
     }
     
     const tickCurrent = Number(pool.tick);

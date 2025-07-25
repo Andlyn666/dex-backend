@@ -1,5 +1,6 @@
 /node_modules/
 dashboard/dashboard.log
+dashboard/db/lp_dashboard.db
 dashboard/config.json
 .env
 dashboard/.DS_Store

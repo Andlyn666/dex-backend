@@ -1,7 +1,7 @@
 import { ethers, EventLog } from "ethers";
 import pLimit from "p-limit";
 import logger from "./logger";
-import { getParamValue, getAllActivePositions } from "./db/utils";
+import { getParamValue, getAllActivePositions, updateParamValue } from "./db/utils";
 import { insertBasicPositionRecord} from "./position";
 import { trackLpTokenHistory, updatePositionSummary } from "./position-operation";
 import { getPoolNameByDexType } from "./utils";
@@ -54,12 +54,14 @@ async function main() {
     for (const instance of config.instances) {
       const provider = new ethers.JsonRpcProvider(instance.rpc_url);
       const pm = new ethers.Contract(instance.position_manager_address, PositionManagerABI, provider);
-      const fromBlock = Number(await getParamValue("last_listen_block_bsc")) || 52000000;
-      const latestBlock = 53000000;
+      const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 52000000;
+      const latestBlock = 54866044;
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
       await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
       await updatePositionSummary(provider, instance.dex_type);
+      await updateParamValue("last_listen_block_bsc_"+ instance.dex_type, latestBlock.toString());
     }
+    
 }
 
 main().catch(error => {
