@@ -77,47 +77,6 @@ async getTokenAmount(tokenId) {
   }
 }
 
-async getTokenAmountWithAddress(tokenId) {
-  try {
-    if (tokenId != this.tokenId) {
-      console.log(`Token ID changed from ${this.tokenId} to ${tokenId}. Clearing cache.`);
-      this.tokenId = tokenId;
-      console.log(`Polling for new tokenId: ${this.tokenId}`);
-      await this.poll(tokenId);
-    }
-    const position = this.positionCache.get(this.tokenId);
-    const pool = this.poolCache.get(this.poolAddress);
-    if (!pool || !position) {
-      return [{address: '', amount: 0}, {address: '', amount: 0}];
-    }
-    
-    const tickCurrent = Number(pool.tick);
-    const tickLower = Number(position.tickLower);
-    const tickUpper = Number(position.tickUpper);
-    const sqrtRatioX96 = BigInt(pool.sqrtRatioX96);
-    const liquidity = BigInt(position.liquidity);
-
-    // Get decimals for both tokens (cached)
-    const decimals0 = await this.getTokenDecimals(position.token0);
-    const decimals1 = await this.getTokenDecimals(position.token1);
-
-    // Calculate token amounts
-    const token0Amount = PositionMath.getToken0Amount(tickCurrent, tickLower, tickUpper, sqrtRatioX96, liquidity);
-    const token1Amount = PositionMath.getToken1Amount(tickCurrent, tickLower, tickUpper, sqrtRatioX96, liquidity);
-
-    // Convert to human-readable values
-    const humanToken0Amount = Number(token0Amount) / (10 ** decimals0);
-    const humanToken1Amount = Number(token1Amount) / (10 ** decimals1);
-
-    console.log('token0Amount:', humanToken0Amount);
-    console.log('token1Amount:', humanToken1Amount);
-    return [{address: position.token0, amount: humanToken0Amount}, {address: position.token1, amount: humanToken1Amount}];
-  } catch (error) {
-    console.error(`Error getting token amounts for tokenId ${this.tokenId}:`, error);
-    return [{address: '', amount: 0}, {address: '', amount: 0}];
-  }
-}
-
 async getTokenDecimals(tokenAddress) {
     if (!this.decimalCache) {
       this.decimalCache = new Map();
@@ -190,64 +149,6 @@ async getTokensOwed(tokenId) {
     console.error(`Error getting tokens owed for tokenId ${this.tokenId}:`, error);
     return {};
   }
-}
-
-async getTokensOwedWithAddress(tokenId) {
-  try {
-    if (tokenId != this.tokenId) {
-      this.tokenId = tokenId;
-      await this.poll(tokenId);
-    }
-    const position = this.positionCache.get(this.tokenId);
-    const pool = this.poolCache.get(this.poolAddress);
-    const tickCurrent = pool.tick;
-    const tickLowerData = this.tickCache.get(position.tickLower) || await this.getTickData(position.tickLower);
-    const tickUpperData = this.tickCache.get(position.tickUpper) || await this.getTickData(position.tickUpper);
-    if (!tickLowerData || !tickUpperData) {
-      console.warn('Tick data not found for tickLower or tickUpper');
-      return;
-    }
-    const feeGrowthOutside0Lower = BigInt(tickLowerData.feeGrowthOutside0X128);
-    const feeGrowthOutside1Lower = BigInt(tickLowerData.feeGrowthOutside1X128);
-    const feeGrowthOutside0Upper = BigInt(tickUpperData.feeGrowthOutside0X128);
-    const feeGrowthOutside1Upper = BigInt(tickUpperData.feeGrowthOutside1X128);
-    const feeGrowthGlobal0X128 = BigInt(pool.feeGrowthGlobal0X128);
-    const feeGrowthGlobal1X128 = BigInt(pool.feeGrowthGlobal1X128);
-
-    const feeGrowthInside = TickLibrary.getFeeGrowthInside(
-      { feeGrowthOutside0X128: feeGrowthOutside0Lower, feeGrowthOutside1X128: feeGrowthOutside1Lower },
-      { feeGrowthOutside0X128: feeGrowthOutside0Upper, feeGrowthOutside1X128: feeGrowthOutside1Upper },
-      position.tickLower,
-      position.tickUpper,
-      tickCurrent,
-      feeGrowthGlobal0X128,
-      feeGrowthGlobal1X128
-    );
-
-    let [tokensOwed0, tokensOwed1] = PositionLibrary.getTokensOwed(
-      BigInt(position.feeGrowthInside0LastX128),
-      BigInt(position.feeGrowthInside1LastX128),
-      BigInt(position.liquidity),
-      BigInt(feeGrowthInside[0]),
-      BigInt(feeGrowthInside[1]));
-    tokensOwed0 = tokensOwed0 + BigInt(position.tokensOwed0);
-    tokensOwed1 = tokensOwed1 + BigInt(position.tokensOwed1);
-
-    // Fetch and cache decimals
-    const decimals0 = await this.getTokenDecimals(position.token0);
-    const decimals1 = await this.getTokenDecimals(position.token1);
-
-    // Convert to human-readable values
-    const humanOwed0 = Number(tokensOwed0) / (10 ** decimals0);
-    const humanOwed1 = Number(tokensOwed1) / (10 ** decimals1);
-
-    console.log('tokensOwed0:',`${humanOwed0}`);
-    console.log('tokensOwed1:', `${humanOwed1}`);
-    return [{address: position.token0, amount: humanOwed0}, {address: position.token1, amount: humanOwed1}];
-  } catch (error) {
-    console.error(`Error getting tokens owed for tokenId ${this.tokenId}:`, error);
-  }
-  return [{address: '', amount: 0}, {address: '', amount: 0}];
 }
 
   async getPositionInfo(tokenId) {
@@ -335,16 +236,16 @@ async poll(tokenId = this.tokenId) {
     }
 }
 
-  start(intervalMs = 3000) {
-    this.interval = setInterval(() => this.poll(), intervalMs);
-  }
+  // start(intervalMs = 3000) {
+  //   this.interval = setInterval(() => this.poll(), intervalMs);
+  // }
 
-  stop() {
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-  }
+  // stop() {
+  //   if (this.interval) {
+  //     clearInterval(this.interval);
+  //     this.interval = null;
+  //   }
+  // }
 }
 
 export async function initWatcherByPool(dexType, poolAddress, tokenId) {
@@ -357,10 +258,10 @@ export async function initWatcherByPool(dexType, poolAddress, tokenId) {
   }
   const watcher = new PancakePositionWatcher(rpcUrl, position_manger, tokenId, poolAddress, PoolABI);
   PancakePositionWatcher.watcherInstances.set(poolAddress, watcher);
-  await watcher.getPositionInfo();
-  await watcher.getPoolInfo();
-  watcher.start(3000);
-  await watcher.poll();
+  // await watcher.getPositionInfo();
+  // await watcher.getPoolInfo();
+  // watcher.start(3000);
+  // await watcher.poll();
 
   return watcher;
 }

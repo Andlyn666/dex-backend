@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS lp_strategy_snapshots (
 
     current_base_amount REAL,
     current_quote_amount REAL,
+    current_base_price_usd REAL,
+    current_quote_price_usd REAL,
     current_position_value_usd REAL,
 
     pnl_total_usd REAL,
@@ -75,6 +77,7 @@ CREATE TABLE IF NOT EXISTS lp_operations (
     base_price_usd REAL,
     quote_amount REAL,
     quote_price_usd REAL,
+    liquidity TEXT,
     tx_hash TEXT,
     block_number INTEGER,
     UNIQUE(pool_address, position_token_id, tx_hash, op_type)

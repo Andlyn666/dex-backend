@@ -38,12 +38,15 @@ export type LpStrategySnapshotParams = {
   current_base_amount?: number;
   current_quote_amount?: number;
   current_position_value_usd?: number;
+  current_base_price_usd?: number;
+  current_quote_price_usd?: number;
 
   pnl_total_usd?: number;
   pnl_total_percentage?: number;
 
-  is_active?: 1;
+  is_active?: 1 | 0;
   block_number?: number;
+  end_block_number?: number;
 };
 
 export type LpOperationParams = {
@@ -59,6 +62,7 @@ export type LpOperationParams = {
   base_price_usd?: number;
   quote_amount?: number;
   quote_price_usd?: number;
+  liquidity?: string;
   tx_hash: string;
   block_number: number;
 };
