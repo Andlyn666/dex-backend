@@ -7,11 +7,12 @@ import { trackLpTokenHistory, updatePositionSummary } from "./position-operation
 import { getPoolNameByDexType } from "./utils";
 import config from "./config.json" with { type: "json" };
 import PositionManagerABI from "../dex/abi/NonfungiblePositionManager.json" with { type: 'json' };
+import { killAnvilFork } from "./pancake-position-mgr";
 import dotenv  from "dotenv";
 
 async function processInstancePositions(instance: any, provider: ethers.Provider, pm: ethers.Contract, fromBlock: number, latestBlock: number) {
     logger.info(`\n🟢 Chain: ${instance.chain} | PM: ${instance.position_manager_address}`);
-    const limit = pLimit(8); // 控制chunk并发数，避免RPC压力过大
+    const limit = pLimit(8); 
     await Promise.all(instance.users_to_monitor.map(async (user: string) => {
         logger.info(`  🔍 Checking user: ${user}`);
         const filter = pm.filters.Transfer(ethers.ZeroAddress, user);
@@ -45,7 +46,7 @@ async function updatePositionOperations(provider: any, pm: any, fromBlock: numbe
     const poolName = getPoolNameByDexType(instance.dex_type);
     const allActivePositions = await getAllActivePositions(poolName);
     logger.info(`Found ${allActivePositions.length} active positions in ${poolName}`);
-    await trackLpTokenHistory(provider, pm, allActivePositions, fromBlock, latestBlock, instance);
+    await trackLpTokenHistory(provider, pm, allActivePositions, fromBlock, latestBlock);
     logger.info('✅ Position operations updated successfully');
 }
 
@@ -59,10 +60,10 @@ async function main() {
       const latestBlock = 53000000;
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
       await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
-      await updatePositionSummary(instance.dex_type);
+      await updatePositionSummary(instance.dex_type, provider);
       await upsertParamValue("last_listen_block_bsc_"+ instance.dex_type, latestBlock.toString());
     }
-    
+    await killAnvilFork();
 }
 
 main().catch(error => {

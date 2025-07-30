@@ -85,7 +85,7 @@ export async function insertOperationRecord(params: LpOperationParams) {
 
 export async function getAllActivePositions(poolName): Promise<any[]> {
     try {
-        const query = `SELECT position_token_id, pool_name, pool_address, base_token_address, quote_token_address FROM lp_strategy_snapshots WHERE is_active = 1 AND pool_name = ?`
+        const query = `SELECT position_token_id, pool_name, pool_address, base_token_address, quote_token_address, base_token_location, position_create_time FROM lp_strategy_snapshots WHERE is_active = 1 AND pool_name = ?`
         const rows = db.prepare(query).all(poolName);
         return rows.map(row => ({
             tokenId: row.position_token_id,
@@ -93,7 +93,9 @@ export async function getAllActivePositions(poolName): Promise<any[]> {
             poolAddress: row.pool_address,
             baseTokenAddress: row.base_token_address,
             quoteTokenAddress: row.quote_token_address,
-            blockNumber: row.block_number
+            blockNumber: row.block_number,
+            baseTokenLocation: row.base_token_location,
+            createTime: row.position_create_time
         }));
         
     } catch (error) {

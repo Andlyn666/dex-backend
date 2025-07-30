@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS lp_strategy_snapshots (
     quote_price_usd REAL,
     base_token_address TEXT,
     quote_token_address TEXT,
+    base_token_location TEXT,
 
     total_add_base_amount REAL,
     total_add_quote_amount REAL,
@@ -48,8 +49,6 @@ CREATE TABLE IF NOT EXISTS lp_strategy_snapshots (
 
     current_base_amount REAL,
     current_quote_amount REAL,
-    current_base_price_usd REAL,
-    current_quote_price_usd REAL,
     current_position_value_usd REAL,
 
     pnl_total_usd REAL,

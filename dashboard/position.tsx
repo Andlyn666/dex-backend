@@ -39,6 +39,7 @@ export async function insertBasicPositionRecord(provider: any, tokenId: string, 
         block_number: mintEvent.blockNumber,
         base_token_address: tokenPair.base,
         quote_token_address: tokenPair.quote,
+        base_token_location: tokenPair.base === positionInfo.token0 ? 'token0' : 'token1'
     };
     await insertPositionRecord(params);
 }

@@ -6,6 +6,7 @@ import util from "util";
 import NonfungiblePositionManagerABI from '../dex/abi/NonfungiblePositionManager.json' with { type: 'json' };
 import { PositionMath, PositionLibrary, TickLibrary } from '@pancakeswap/v3-sdk';
 import PoolABI from '../dex/abi/PancakeV3Pool.json' with { type: 'json' };
+import logger from './logger';
 
 dotenv.config();
 const execAsync = util.promisify(exec);
@@ -36,7 +37,7 @@ async getTokenAmountWithAddress(tokenId, poolAddress) {
     const poolMgrContract = new ethers.Contract(this.positionManager, NonfungiblePositionManagerABI, this.provider);
     const position = await this.getPositionInfo(tokenId, poolMgrContract);
     if (!position || !position.tickLower) {
-      console.warn(`Position not found for tokenId ${tokenId}`);
+      logger.warn(`Position not found for tokenId ${tokenId}`);
       return [{address: '', amount: 0}, {address: '', amount: 0}];
     }
     const contract = new ethers.Contract(poolAddress, this.poolAbi, this.provider);
@@ -61,7 +62,7 @@ async getTokenAmountWithAddress(tokenId, poolAddress) {
 
     return [{address: position.token0, amount: humanToken0Amount}, {address: position.token1, amount: humanToken1Amount}];
   } catch (error) {
-    console.error(`Error getting token amounts for tokenId ${tokenId}:`, error);
+    logger.error(`Error getting token amounts for tokenId ${tokenId}:`, error);
     return [{address: '', amount: 0}, {address: '', amount: 0}];
   }
 }
@@ -86,7 +87,7 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
     const poolMgrContract = new ethers.Contract(this.positionManager, NonfungiblePositionManagerABI, this.provider);
     const position = await this.getPositionInfo(tokenId, poolMgrContract);
     if (!position || !position.tickLower) {
-      console.warn(`Position not found for tokenId ${tokenId}`);
+      logger.warn(`Position not found for tokenId ${tokenId}`);
       return [{address: '', amount: 0}, {address: '', amount: 0}];
     }
     const contract = new ethers.Contract(poolAddress, PoolABI, this.provider);
@@ -97,8 +98,8 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
       this.getTickData(position.tickUpper, contract)
     ]);
     if (!tickLowerData || !tickUpperData) {
-      console.warn('Tick data not found for tickLower or tickUpper');
-      return;
+      logger.warn('Tick data not found for tickLower or tickUpper');
+      return [{address: '', amount: 0}, {address: '', amount: 0}];
     }
     const feeGrowthOutside0Lower = BigInt(tickLowerData.feeGrowthOutside0X128);
     const feeGrowthOutside1Lower = BigInt(tickLowerData.feeGrowthOutside1X128);
@@ -134,11 +135,9 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
     const humanOwed0 = Number(tokensOwed0) / (10 ** decimals0);
     const humanOwed1 = Number(tokensOwed1) / (10 ** decimals1);
 
-    console.log('tokensOwed0:',`${humanOwed0}`);
-    console.log('tokensOwed1:', `${humanOwed1}`);
     return [{address: position.token0, amount: humanOwed0}, {address: position.token1, amount: humanOwed1}];
   } catch (error) {
-    console.error(`Error getting tokens owed for tokenId ${tokenId}:`, error);
+    logger.error(`Error getting tokens owed for tokenId ${tokenId}:`, error);
   }
   return [{address: '', amount: 0}, {address: '', amount: 0}];
 }
@@ -162,7 +161,7 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
         tokensOwed1: pos.tokensOwed1.toString(),
       };
     } catch (error) {
-      console.error(`Error fetching position info for tokenId ${tokenId}:`, error);
+      logger.error(`Error fetching position info for tokenId ${tokenId}:`, error);
     }
     return info;
   }
@@ -189,7 +188,7 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
         tickUpper: tickUpperData
       }
     } catch (error) {
-      console.error(`Error fetching pool info for tokenId ${pos.tokenId}:`, error);
+      logger.error(`Error fetching pool info for tokenId ${pos.tokenId}:`, error);
     }
     return pool;
   }
@@ -218,27 +217,48 @@ export async function startAnvilFork() {
   const anvilCmd = `anvil -f ${forkUrl}`;
 
   try {
-    console.log(`Starting anvil fork: ${anvilCmd}`);
+    logger.info(`Starting anvil fork: ${anvilCmd}`);
     execAsync(anvilCmd);
     // 等待一段时间以确保 anvil 启动
     await new Promise(resolve => setTimeout(resolve, 5000));
-    console.log("Anvil fork started successfully.");
+    logger.info("Anvil fork started successfully.");
   } catch (error) {
-    console.error("Failed to start anvil fork:", error);
+    logger.error("Failed to start anvil fork:", error);
   }
 }
 export async function killAnvilFork() {
   try {
     const { stdout, stderr } = await execAsync("pkill -f anvil");
-    if (stdout) console.log(stdout);
-    if (stderr) console.error(stderr);
-    console.log("Anvil fork killed successfully.");
+    if (stdout) logger.info(stdout);
+    if (stderr) logger.error(stderr);
+    logger.info("Anvil fork killed successfully.");
   } catch (error) {
-    console.error("Failed to kill anvil fork:", error);
+    logger.error("Failed to kill anvil fork:", error);
   }
 }
 
 
 await startAnvilFork()
-export const watcherUniswap = await initWatcher('uniswap');
-export const watcherPancake = await initWatcher('pancake');
+const watcherUniswap = await initWatcher('uniswap');
+const watcherPancake = await initWatcher('pancake');
+
+export async function getTokenAmount(poolAddress: string, tokenId: string, dexType: string) {
+  if (dexType === 'pancake') {
+    return await watcherPancake.getTokenAmountWithAddress(tokenId, poolAddress);
+  } else if (dexType === 'uniswap') {
+    return await watcherUniswap.getTokenAmountWithAddress(tokenId, poolAddress);
+  } else {
+    throw new Error(`Unsupported dex type: ${dexType}`);
+  }
+}
+
+// 获取 tokens owed
+export async function getTokensOwed(poolAddress: string, tokenId: string, dexType) {
+  if (dexType === 'pancake') {
+    return await watcherPancake.getTokensOwedWithAddress(tokenId, poolAddress);
+  } else if (dexType === 'uniswap') {
+    return await watcherUniswap.getTokensOwedWithAddress(tokenId, poolAddress);
+  } else {
+    throw new Error(`Unsupported dex type: ${dexType}`);
+  }
+}

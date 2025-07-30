@@ -10,6 +10,7 @@ export type LpStrategySnapshotParams = {
   quote_price_usd?: number;
   base_token_address?: string;
   quote_token_address?: string;
+  base_token_location?: string;
 
   total_add_base_amount?: number;
   total_add_quote_amount?: number;
@@ -38,13 +39,11 @@ export type LpStrategySnapshotParams = {
   current_base_amount?: number;
   current_quote_amount?: number;
   current_position_value_usd?: number;
-  current_base_price_usd?: number;
-  current_quote_price_usd?: number;
 
   pnl_total_usd?: number;
   pnl_total_percentage?: number;
 
-  is_active?: 1 | 0;
+  is_active?: number;
   block_number?: number;
   end_block_number?: number;
 };
