@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS lp_strategy_snapshots (
     total_fee_claim_quote_value_usd REAL,
     total_fee_claim_value_usd REAL,
 
+    total_collect_base_amount REAL,
+    total_collect_quote_amount REAL,
+    total_collect_base_value_usd REAL,
+    total_collect_quote_value_usd REAL,
+    total_collect_value_usd REAL,
+
     unclaimed_fee_base_amount REAL,
     unclaimed_fee_quote_amount REAL,
     unclaimed_fee_base_value_usd REAL,

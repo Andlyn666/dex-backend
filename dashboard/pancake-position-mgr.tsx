@@ -228,7 +228,7 @@ export async function startAnvilFork() {
 }
 export async function killAnvilFork() {
   try {
-    const { stdout, stderr } = await execAsync("pkill -f anvil");
+    const { stdout, stderr } = await execAsync("pkill -f anvil || true");
     if (stdout) logger.info(stdout);
     if (stderr) logger.error(stderr);
     logger.info("Anvil fork killed successfully.");
