@@ -97,16 +97,28 @@ export async function updatePositionSummary(dexType, provider) {
         let position_duration_h = 0;
         let is_active = 0;
         let endBlockNumber = 0;
-        let total_add_base_amount = 0, total_add_quote_amount = 0;
-        let total_add_base_value_usd = 0, total_add_quote_value_usd = 0;
-        let total_remove_base_amount = 0, total_remove_quote_amount = 0;
-        let total_remove_base_value_usd = 0, total_remove_quote_value_usd = 0;
-        let total_fee_claim_base_amount = 0, total_fee_claim_quote_amount = 0;
-        let total_fee_claim_base_value_usd = 0, total_fee_claim_quote_value_usd = 0;
-        let unclaimed_fee_base_amount = 0, unclaimed_fee_quote_amount = 0;
-        let unclaimed_fee_base_value_usd = 0, unclaimed_fee_quote_value_usd = 0;
-        let unclaimed_fee_value_usd = 0, current_base_amount = 0;
-        let current_quote_amount = 0, current_position_value_usd = 0;
+        let total_add_base_amount = 0;
+        let total_add_quote_amount = 0;
+        let total_add_base_value_usd = 0;
+        let total_add_quote_value_usd = 0;
+        let total_remove_base_amount = 0;
+        let total_remove_quote_amount = 0;
+        let total_remove_base_value_usd = 0;
+        let total_remove_quote_value_usd = 0;
+        let unclaimed_fee_base_amount = 0;
+        let unclaimed_fee_quote_amount = 0;
+        let unclaimed_fee_base_value_usd = 0;
+        let unclaimed_fee_quote_value_usd = 0;
+        let unclaimed_fee_value_usd = 0;
+        let current_base_amount = 0;
+        let current_quote_amount = 0;
+        let current_position_value_usd = 0;
+        let total_collect_base_amount = 0;
+        let total_collect_quote_amount = 0;
+        let total_collect_base_value_usd = 0;
+        let total_collect_quote_value_usd = 0;
+        let total_collect_value_usd = 0;
+        let total_add_value_usd = 0;
 
         const priceMgr = getTokenPriceManager(BSC_CG_NAME);
         const date = convertBlockTimetoDate(Date.now()); // 使用当前时间作为日期
@@ -138,10 +150,10 @@ export async function updatePositionSummary(dexType, provider) {
                 total_remove_quote_value_usd = total_remove_quote_amount * op.quote_price_usd || 0;
             }
             if (op.op_type === "Collect") {
-                total_fee_claim_base_amount = total_fee_claim_base_amount + (op.base_amount / (10 ** op.base_decimals));
-                total_fee_claim_quote_amount = total_fee_claim_quote_amount + (op.quote_amount / (10 ** op.quote_decimals));
-                total_fee_claim_base_value_usd = total_fee_claim_base_amount * op.base_price_usd || 0;
-                total_fee_claim_quote_value_usd = total_fee_claim_quote_amount * op.quote_price_usd || 0;
+                total_collect_base_amount = total_collect_base_amount + (op.base_amount / (10 ** op.base_decimals));
+                total_collect_quote_amount = total_collect_quote_amount + (op.quote_amount / (10 ** op.quote_decimals));
+                total_collect_base_value_usd = total_collect_base_amount * op.base_price_usd || 0;
+                total_collect_quote_value_usd = total_collect_quote_amount * op.quote_price_usd || 0;
             }
         }
         is_active = currentLiquidity > 0n ? 1 : 0;
@@ -159,12 +171,18 @@ export async function updatePositionSummary(dexType, provider) {
             position_duration_h = Math.floor((new Date(endTime).getTime() - new Date(position.createTime).getTime()) / (1000 * 60 * 60));
         }
         
-        const total_add_value_usd = total_add_base_value_usd + total_add_quote_value_usd;
-        const total_fee_claim_value_usd = total_fee_claim_base_value_usd + total_fee_claim_quote_value_usd;
+        total_add_value_usd = total_add_base_value_usd + total_add_quote_value_usd;
+        total_collect_value_usd = total_collect_base_value_usd + total_collect_quote_value_usd;
         const total_remove_value_usd = total_remove_base_value_usd + total_remove_quote_value_usd;
         unclaimed_fee_base_value_usd = unclaimed_fee_base_amount * basePrice || 0;
         unclaimed_fee_quote_value_usd = unclaimed_fee_quote_amount * quotePrice || 0;
         unclaimed_fee_value_usd = unclaimed_fee_base_value_usd + unclaimed_fee_quote_value_usd;
+
+        const total_fee_claim_base_amount = total_remove_base_amount >= 0n ? total_collect_base_amount - total_remove_base_amount : total_collect_base_amount;
+        const total_fee_claim_quote_amount = total_remove_quote_amount >= 0n ? total_collect_quote_amount - total_remove_quote_amount : total_collect_quote_amount;
+        const total_fee_claim_base_value_usd = total_remove_base_value_usd >= 0 ? total_collect_base_value_usd - total_remove_base_value_usd : total_collect_base_value_usd;
+        const total_fee_claim_quote_value_usd = total_remove_quote_value_usd >= 0 ? total_collect_quote_value_usd - total_remove_quote_value_usd : total_collect_quote_value_usd;
+        const total_fee_claim_value_usd = total_fee_claim_base_value_usd + total_fee_claim_quote_value_usd;
         const pnl_total_usd = unclaimed_fee_value_usd + total_fee_claim_value_usd + current_position_value_usd - (total_add_value_usd);
         const pnl_total_percentage = total_add_value_usd > 0 ? (pnl_total_usd / total_add_value_usd) * 100 : 0;
 
@@ -186,6 +204,11 @@ export async function updatePositionSummary(dexType, provider) {
             total_remove_base_value_usd,
             total_remove_quote_value_usd,
             total_remove_value_usd,
+            total_collect_base_amount,
+            total_collect_quote_amount,
+            total_collect_base_value_usd,
+            total_collect_quote_value_usd,
+            total_collect_value_usd,
             total_fee_claim_base_amount,
             total_fee_claim_quote_amount,
             total_fee_claim_base_value_usd,
