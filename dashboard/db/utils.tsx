@@ -1,8 +1,18 @@
 import Database from 'better-sqlite3';
+import fs from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
 import { LpStrategySnapshotParams, LpOperationParams } from './type';
 import logger from '../logger';
-export const db = new Database('db/lp_dashboard.db');
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbDir = path.join(__dirname, "../db");
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+export const db = new Database(path.join(dbDir, "lp_dashboard.db"));
 
 export async function getParamValue(paramKey: string): Promise<string | null> {
     const query = `SELECT param_value FROM lp_parameters WHERE param_key = ?`;
