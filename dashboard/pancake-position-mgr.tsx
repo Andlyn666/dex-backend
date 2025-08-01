@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 import { ethers } from 'ethers';
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import util from "util";
 
 import NonfungiblePositionManagerABI from '../dex/abi/NonfungiblePositionManager.json' with { type: 'json' };
@@ -10,6 +10,8 @@ import logger from './logger';
 
 dotenv.config();
 const execAsync = util.promisify(exec);
+let anvilProcess: ReturnType<typeof spawn> | null = null;
+
 
 export class PancakePositionWatcher {
   rpcUrl: string;
@@ -211,30 +213,45 @@ export async function initWatcher(dexType) {
   return watcher;
 }
 
-export async function startAnvilFork() {
-  // 你可以根据需要修改 fork 的 RPC 源
-  const forkUrl = process.env.RPC_URL
-  const anvilCmd = `anvil -f ${forkUrl}`;
-
-  try {
-    logger.info(`Starting anvil fork: ${anvilCmd}`);
-    execAsync(anvilCmd);
-    // 等待一段时间以确保 anvil 启动
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    logger.info("Anvil fork started successfully.");
-  } catch (error) {
-    logger.error("Failed to start anvil fork:", error);
+export async function killAnvilFork() {
+  if (anvilProcess && !anvilProcess.killed && anvilProcess.pid) {
+    try {
+      process.kill(-anvilProcess.pid, 'SIGTERM'); // 负号表示杀掉整个进程组
+      logger.info("Anvil fork killed successfully.");
+    } catch (error) {
+      logger.error("Failed to kill anvil fork:", error);
+    }
+  } else {
+    // 兜底：如果没有记录进程对象，仍可用 pkill
+    try {
+      const { stdout, stderr } = await execAsync("pkill -f anvil || true");
+      if (stdout) logger.info(stdout);
+      if (stderr) logger.error(stderr);
+      logger.info("Anvil fork killed by pkill.");
+    } catch (error) {
+      logger.error("Failed to kill anvil fork by pkill:", error);
+    }
   }
 }
-export async function killAnvilFork() {
-  try {
-    const { stdout, stderr } = await execAsync("pkill -f anvil || true");
-    if (stdout) logger.info(stdout);
-    if (stderr) logger.error(stderr);
-    logger.info("Anvil fork killed successfully.");
-  } catch (error) {
-    logger.error("Failed to kill anvil fork:", error);
-  }
+
+export async function startAnvilFork() {
+
+  const rpcUrl = process.env.RPC_URL || 'https://bsc-dataseed.binance.org/';
+  anvilProcess = spawn("anvil", ["-f", rpcUrl, "-q"], {
+    stdio: "inherit",
+    detached: true
+  });
+
+  anvilProcess.on("error", (err) => {
+    logger.error("Failed to start anvil:", err);
+  });
+
+  anvilProcess.on("exit", (code) => {
+    logger.info("Anvil exited with code", code);
+  });
+  // wait 5 seconds for anvil to be ready
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  return anvilProcess;
 }
 
 
