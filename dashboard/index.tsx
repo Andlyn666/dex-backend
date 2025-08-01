@@ -1,7 +1,7 @@
 import { ethers, EventLog } from "ethers";
 import pLimit from "p-limit";
 import logger from "./logger";
-import { getParamValue, getAllActivePositions, upsertParamValue } from "./db/utils";
+import { getParamValue, getAllActivePositions, upsertParamValue } from "./db/queries";
 import { insertBasicPositionRecord} from "./position";
 import { trackLpTokenHistory, updatePositionSummary } from "./position-operation";
 import { getPoolNameByDexType } from "./utils";

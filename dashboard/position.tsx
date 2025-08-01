@@ -3,7 +3,7 @@ import logger from "./logger";
 import ERC20ABI from "../dex/abi/ERC20.json" with { type: 'json' };
 import V3PoolABI from "../dex/abi/PancakeV3Pool.json" with { type: 'json' };
 import { LpStrategySnapshotParams } from "./db/type";
-import { insertPositionRecord } from "./db/utils";
+import { insertPositionRecord } from "./db/queries";
 import { getPoolNameByDexType, withRetry,  getBlockTimestamp, getBaseAndQuoteToken} from "./utils";
 import { MINT_EVENT_TOPIC } from "./constant";
 

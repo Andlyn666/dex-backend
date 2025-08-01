@@ -2,7 +2,7 @@ import { EventLog, ethers } from "ethers";
 import pLimit from "p-limit";
 import { getBlockTimestamp, convertBlockTimetoDate, withRetry, getTokenDecimals } from "./utils";
 import { getTokensOwed, getTokenAmount } from "./pancake-position-mgr";
-import { updatePositionRecord, getAllActivePositions, db } from "./db/utils";
+import { updatePositionRecord, getAllActivePositions, insertManyOperations, getOperationsByTokenId } from "./db/queries";
 import { LpOperationParams, LpStrategySnapshotParams } from "./db/type";
 import { getTokenPriceManager } from "./token";
 import { BSC_CG_NAME } from "./constant";
@@ -16,7 +16,7 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
         const end = Math.min(start + chunkSize - 1, toBlock);
         const incEvents = await withRetry(() => pm.queryFilter(filter, start, end)) as EventLog[];
         for (const e of incEvents) {
-            const blockTime = await withRetry(() => getBlockTimestamp(provider, e.blockNumber));
+            const blockTime = await withRetry(() => getBlockTimestamp(provider, Number(e.blockNumber)));
         const [ basePriceHis, quotePriceHis, baseDecimals, quoteDecimals] = await Promise.all([
                 priceMgr.fetchTokenPrice(position.baseTokenAddress, convertBlockTimetoDate(blockTime)),
                 priceMgr.fetchTokenPrice(position.quoteTokenAddress, convertBlockTimetoDate(blockTime)),
@@ -45,20 +45,7 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
             paramsList.push(params);
         }
     }
-    // 批量写入数据库
-    if (paramsList.length > 0) {
-        const fields = Object.keys(paramsList[0]);
-        const placeholders = fields.map(() => '?').join(', ');
-        const insertQuery = `INSERT INTO lp_operations (${fields.join(', ')}) VALUES (${placeholders})`;
-        const insertMany = db.transaction((rows: LpOperationParams[]) => {
-            const stmt = db.prepare(insertQuery);
-            for (const row of rows) {
-                const values = fields.map(f => (row as any)[f]);
-                stmt.run(...values);
-            }
-        });
-        insertMany(paramsList);
-    }
+   await insertManyOperations(paramsList);
 }
 
 export async function trackLpTokenHistory(provider, pm: ethers.Contract, positions: any[], fromBlock: number, toBlock: number) {
@@ -86,12 +73,7 @@ export async function updatePositionSummary(dexType, provider) {
     const allActivePositions = await getAllActivePositions(poolName);
     for (const position of allActivePositions) {
         const { poolAddress, tokenId } = position;
-
-        // 查询所有操作
-        const ops = db.prepare(
-            `SELECT * FROM lp_operations WHERE pool_address = ? AND position_token_id = ? ORDER BY block_number ASC`
-        ).all(poolAddress, tokenId);
-
+        const ops = await getOperationsByTokenId(poolAddress, tokenId);
         // 汇总
         let currentLiquidity = 0n;
         let position_duration_h = 0;
@@ -144,7 +126,7 @@ export async function updatePositionSummary(dexType, provider) {
                 currentLiquidity -= BigInt(op.liquidity);
                 is_active = currentLiquidity > 0n ? 1 : 0;
                 if (!is_active) {
-                    endBlockNumber = op.block_number;
+                    endBlockNumber = Number(op.block_number);
                 }
                 total_remove_base_value_usd = total_remove_base_amount * op.base_price_usd || 0;
                 total_remove_quote_value_usd = total_remove_quote_amount * op.quote_price_usd || 0;
@@ -183,12 +165,12 @@ export async function updatePositionSummary(dexType, provider) {
         const total_fee_claim_base_value_usd = total_remove_base_value_usd >= 0 ? total_collect_base_value_usd - total_remove_base_value_usd : total_collect_base_value_usd;
         const total_fee_claim_quote_value_usd = total_remove_quote_value_usd >= 0 ? total_collect_quote_value_usd - total_remove_quote_value_usd : total_collect_quote_value_usd;
         const total_fee_claim_value_usd = total_fee_claim_base_value_usd + total_fee_claim_quote_value_usd;
-        const pnl_total_usd = unclaimed_fee_value_usd + total_fee_claim_value_usd + current_position_value_usd - (total_add_value_usd);
+        const pnl_total_usd = unclaimed_fee_value_usd + total_collect_value_usd + current_position_value_usd - (total_add_value_usd);
         const pnl_total_percentage = total_add_value_usd > 0 ? (pnl_total_usd / total_add_value_usd) * 100 : 0;
 
         
         const params: LpStrategySnapshotParams = {
-            query_time: new Date().toString(),
+            query_time: new Date().toISOString(),
             pool_address: poolAddress,
             position_token_id: tokenId,
             pool_name: poolName,

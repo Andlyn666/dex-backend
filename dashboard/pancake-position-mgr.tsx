@@ -226,14 +226,13 @@ export async function startAnvilFork() {
     logger.error("Failed to start anvil fork:", error);
   }
 }
+
 export async function killAnvilFork() {
   try {
-    const { stdout, stderr } = await execAsync("pkill -f anvil || true");
-    if (stdout) logger.info(stdout);
-    if (stderr) logger.error(stderr);
-    logger.info("Anvil fork killed successfully.");
+    await execAsync("pkill -f anvil || true");
+    logger.info("Anvil fork killed successfully (or no process found).");
   } catch (error) {
-    logger.error("Failed to kill anvil fork:", error);
+    logger.warn("No anvil process found or failed to kill, safe to ignore unless anvil is still running.");
   }
 }
 

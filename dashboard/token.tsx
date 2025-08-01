@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { ethers } from 'ethers';
 import { withRetry } from './utils';
 import logger from './logger';
 dotenv.config();
