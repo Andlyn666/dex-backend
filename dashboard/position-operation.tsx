@@ -183,7 +183,7 @@ export async function updatePositionSummary(dexType, provider) {
         const total_fee_claim_base_value_usd = total_remove_base_value_usd >= 0 ? total_collect_base_value_usd - total_remove_base_value_usd : total_collect_base_value_usd;
         const total_fee_claim_quote_value_usd = total_remove_quote_value_usd >= 0 ? total_collect_quote_value_usd - total_remove_quote_value_usd : total_collect_quote_value_usd;
         const total_fee_claim_value_usd = total_fee_claim_base_value_usd + total_fee_claim_quote_value_usd;
-        const pnl_total_usd = unclaimed_fee_value_usd + total_fee_claim_value_usd + current_position_value_usd - (total_add_value_usd);
+        const pnl_total_usd = unclaimed_fee_value_usd + total_collect_value_usd + current_position_value_usd - (total_add_value_usd);
         const pnl_total_percentage = total_add_value_usd > 0 ? (pnl_total_usd / total_add_value_usd) * 100 : 0;
 
         
