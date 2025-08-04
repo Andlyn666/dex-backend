@@ -96,7 +96,8 @@ async function testInitWatcher() {
   try {
     const response = await axios.post('http://localhost:3100/init', {
       poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', // replace with your pool address
-      tokenId: 997991 // replace with your tokenId
+      tokenId: 997991,
+      dexType: 'pancake' // replace with your tokenId
     });
     console.log('Init watcher response:', response.data);
   } catch (error) {
@@ -111,7 +112,7 @@ async function testInitWatcher() {
 async function testGetTokenAmount() {
   try {
     const response = await axios.get('http://localhost:3100/get-amount', {
-      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050' } // replace with your pool address
+      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', tokenId: 997991 } // replace with your pool address
     });
     console.log('Get token amount response:', response.data);
   } catch (error) {
@@ -126,7 +127,7 @@ async function testGetTokenAmount() {
 async function testGetTokensOwed() {
   try {
     const response = await axios.get('http://localhost:3100/get-tokens-owed', {
-      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050' } // replace with your pool address
+      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', tokenId: 997991 } // replace with your pool address
     });
     console.log('Get tokens owed response:', response.data);
   } catch (error) {
@@ -145,7 +146,6 @@ async function runPositionServiceTests() {
   // Wait a bit for watcher to initialize and poll
   setTimeout(async () => {
     await testGetTokenAmount();
-    await testGetTokensOwed();
   }, 4000);
 }
 
