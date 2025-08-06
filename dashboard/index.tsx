@@ -33,7 +33,7 @@ async function processInstancePositions(instance: any, provider: ethers.Provider
             limit(async () => {
                 const tokenId = (event as EventLog).args?.tokenId.toString();
                 logger.info(`    🔎 Processing tokenId: ${tokenId}`);
-                await insertBasicPositionRecord(provider, tokenId, instance, event);
+                await insertBasicPositionRecord(provider, tokenId, instance, event, user);
             })
         ));
     }));

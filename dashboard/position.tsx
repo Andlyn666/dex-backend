@@ -15,7 +15,7 @@ const poolInfoCache = new Map<string, {
     symbol1: string
 }>();
 
-export async function insertBasicPositionRecord(provider: any, tokenId: string, instance: any, mintEvent: any) {
+export async function insertBasicPositionRecord(provider: any, tokenId: string, instance: any, mintEvent: any, user: string) {
     const positionInfo = await getPositionInfo(provider, tokenId, mintEvent);
     if (!positionInfo) {
         logger.error(`Failed to get position info for tokenId ${tokenId}`);
@@ -39,7 +39,8 @@ export async function insertBasicPositionRecord(provider: any, tokenId: string, 
         block_number: mintEvent.blockNumber,
         base_token_address: tokenPair.base,
         quote_token_address: tokenPair.quote,
-        base_token_location: tokenPair.base === positionInfo.token0 ? 'token0' : 'token1'
+        base_token_location: tokenPair.base === positionInfo.token0 ? 'token0' : 'token1',
+        owner: user,
     };
     await insertPositionRecord(params);
 }

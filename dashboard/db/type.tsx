@@ -52,6 +52,7 @@ export type LpStrategySnapshotParams = {
   is_active?: number;
   block_number?: number;
   end_block_number?: number;
+  owner?: string;
 };
 
 export type LpOperationParams = {

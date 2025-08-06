@@ -58,6 +58,7 @@ async function initPostgres() {
           is_active BOOLEAN,
           block_number BIGINT,
           end_block_number BIGINT,
+          owner TEXT,
           UNIQUE(pool_address, pool_name, position_token_id)
       );
     `);
