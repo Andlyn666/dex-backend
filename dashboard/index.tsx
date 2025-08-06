@@ -66,6 +66,16 @@ async function main() {
     await killAnvilFork();
 }
 
-main().catch(error => {
-  logger.error("Error in main function:", error);
-});
+async function runMainLoop() {
+  while (true) {
+    try {
+      await main();
+    } catch (error) {
+      logger.error("Error in main function:", error);
+    }
+    // 等待 30 秒
+    await new Promise(resolve => setTimeout(resolve, 30000));
+  }
+}
+
+runMainLoop();
