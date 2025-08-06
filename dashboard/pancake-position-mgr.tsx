@@ -237,7 +237,8 @@ export async function killAnvilFork() {
 export async function startAnvilFork() {
 
   const rpcUrl = process.env.RPC_URL || 'https://bsc-dataseed.binance.org/';
-  anvilProcess = spawn("anvil", ["-f", rpcUrl, "-q"], {
+  const port = process.env.ANVIL_PORT || '8545';
+  anvilProcess = spawn("anvil", ["-f", rpcUrl, "-p", port, "-q"], {
     stdio: "inherit",
     detached: true
   });
@@ -249,8 +250,10 @@ export async function startAnvilFork() {
   anvilProcess.on("exit", (code) => {
     logger.info("Anvil exited with code", code);
   });
+
   // wait 5 seconds for anvil to be ready
   await new Promise((resolve) => setTimeout(resolve, 5000));
+  logger.info(`Anvil fork started on port ${port}`);
   return anvilProcess;
 }
 
