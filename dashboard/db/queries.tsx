@@ -15,8 +15,7 @@ export async function isTokenIdRecordExists(poolAddress: string, tokenId: number
         );
         return (result?.rowCount ?? 0) > 0;
     } catch (error) {
-        logger.error('Error checking token ID record:', error);
-        return false;
+        throw new Error(`Error checking token ID record: ${error}`);
     }
 }
 
@@ -35,8 +34,7 @@ export async function insertPositionRecord(params: LpStrategySnapshotParams): Pr
         await pool.query(query, values);
         return true;
     } catch (error) {
-        logger.error('Error inserting position record:', error);
-        return false;
+        throw new Error(`Error inserting position record: ${error}`);
     }
 }
 
@@ -62,8 +60,7 @@ export async function updatePositionRecord(params: LpStrategySnapshotParams): Pr
         await pool.query(query, values);
         return true;
     } catch (error) {
-        logger.error('Error updating position record:', error);
-        return false;
+        throw new Error(`Error updating position record: ${error}`);
     }
 }
 
@@ -77,8 +74,7 @@ export async function insertOperationRecord(params: LpOperationParams): Promise<
         await pool.query(query, values);
         return true;
     } catch (error) {
-        logger.error('Error inserting operation record:', error);
-        return false;
+        throw new Error(`Error inserting operation record: ${error}`);
     }
 }
 
@@ -98,8 +94,7 @@ export async function getAllActivePositions(poolName: string): Promise<any[]> {
             createTime: row.position_create_time,
         }));
     } catch (error) {
-        logger.error('Error fetching active token IDs:', error);
-        return [];
+        throw new Error(`Error fetching active token IDs: ${error}`);
     }
 }
 
@@ -113,8 +108,7 @@ export async function upsertParamValue(paramKey: string, paramValue: string): Pr
         await pool.query(query, [paramKey, paramValue]);
         return true;
     } catch (error) {
-        logger.error('Error upserting parameter value:', error);
-        return false;
+        throw new Error(`Error upserting parameter value: ${error}`);
     }
 }
 
@@ -141,9 +135,9 @@ export async function insertManyOperations(paramsList: LpOperationParams[]) {
 
     try {
         await pool.query(query, values);
-        console.log(`✅ Inserted ${paramsList.length} lp_operations rows`);
+        logger.info(`✅ Inserted ${paramsList.length} lp_operations rows`);
     } catch (error) {
-        console.error('❌ Error inserting batch lp_operations:', error);
+        throw new Error(`❌ Error inserting batch lp_operations: ${error}`);
     }
 }
 

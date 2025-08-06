@@ -26,8 +26,7 @@ export async function isTokenIdRecordExists(poolAddress, tokenId, poolName) {
         const row = db.prepare(query).get(poolAddress, tokenId, poolName);
         return row !== undefined;
     } catch (error) {
-        logger.error('Error checking token ID record:', error);
-        return false;
+        throw new Error(`Error checking token ID record: ${error}`);
     }
 }
 
@@ -49,8 +48,7 @@ export async function insertPositionRecord(params: LpStrategySnapshotParams) {
         db.prepare(insertQuery).run(...values);
         return true;
     } catch (error) {
-        logger.error('Error inserting position record:', error);
-        return false;
+        throw new Error(`Error inserting position record: ${error}`);
     }
 }
 
@@ -74,8 +72,7 @@ export async function updatePositionRecord(params: LpStrategySnapshotParams) {
         db.prepare(updateQuery).run(...values);
         return true;
     } catch (error) {
-        logger.error('Error updating position record:', error);
-        return false;
+        throw new Error(`Error updating position record: ${error}`);
     }
 }
 
@@ -88,8 +85,7 @@ export async function insertOperationRecord(params: LpOperationParams) {
         db.prepare(insertQuery).run(...values);
         return true;
     } catch (error) {
-        logger.error('Error inserting operation record:', error);
-        return false;
+        throw new Error(`Error inserting operation record: ${error}`);
     }
 }
 
@@ -109,8 +105,7 @@ export async function getAllActivePositions(poolName): Promise<any[]> {
         }));
         
     } catch (error) {
-        logger.error('Error fetching active token IDs:', error);
-        return [];
+        throw new Error(`Error fetching active token IDs: ${error}`);
     }
 }
 
@@ -124,7 +119,6 @@ export async function upsertParamValue(paramKey: string, paramValue: string): Pr
         db.prepare(upsertQuery).run(paramKey, paramValue);
         return true;
     } catch (error) {
-        logger.error('Error upserting parameter value:', error);
-        return false;
+        throw new Error(`Error upserting parameter value: ${error}`);
     }
 }

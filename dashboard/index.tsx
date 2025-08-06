@@ -7,7 +7,7 @@ import { trackLpTokenHistory, updatePositionSummary } from "./position-operation
 import { getPoolNameByDexType } from "./utils";
 import config from "./config.json" with { type: "json" };
 import PositionManagerABI from "../dex/abi/NonfungiblePositionManager.json" with { type: 'json' };
-import { killAnvilFork } from "./pancake-position-mgr";
+import { killAnvilFork, startAnvilFork } from "./pancake-position-mgr";
 import dotenv  from "dotenv";
 
 async function processInstancePositions(instance: any, provider: ethers.Provider, pm: ethers.Contract, fromBlock: number, latestBlock: number) {
@@ -53,6 +53,7 @@ async function updatePositionOperations(provider: any, pm: any, fromBlock: numbe
 
 async function main() {
     dotenv.config();
+    await startAnvilFork();
     for (const instance of config.instances) {
       const provider = new ethers.JsonRpcProvider(instance.rpc_url);
       const pm = new ethers.Contract(instance.position_manager_address, PositionManagerABI, provider);
@@ -66,16 +67,25 @@ async function main() {
     await killAnvilFork();
 }
 
+// async function runMainLoop() {
+//   while (true) {
+//     try {
+//       await main();
+//     } catch (error) {
+//       logger.error("Error in main function:", error);
+//     }
+//     // 等待 30 秒
+//     await new Promise(resolve => setTimeout(resolve, 30000));
+//   }
+// }
+
+// runMainLoop();
 async function runMainLoop() {
-  while (true) {
     try {
-      await main();
+        await main();
     } catch (error) {
-      logger.error("Error in main function:", error);
+        logger.error("Error in main function:", error);
     }
-    // 等待 30 秒
-    await new Promise(resolve => setTimeout(resolve, 30000));
-  }
 }
 
 runMainLoop();

@@ -33,7 +33,7 @@ export class PriceManager {
         symbol: coin.symbol.toUpperCase()
       }));
     } catch (err) {
-      logger.error('Error fetching coin list:', err);
+      throw new Error(`Error fetching coin list: ${err}`);
     }
   }
   
@@ -42,8 +42,7 @@ export class PriceManager {
     if (token) {
         return token.id;
     } else {
-      logger.error(`Token address ${tokenAddress} not found in price list`);
-       return '';
+      throw new Error(`Token address ${tokenAddress} not found in price list`);
     }
   }
   async callGetHisPrice(tokenAddress: string, date: string) {
@@ -66,8 +65,7 @@ export class PriceManager {
         const usdPrice = result.market_data?.current_price?.usd || 0;
         return usdPrice;
     } catch (error) {
-        logger.error(`Error fetching price for ${tokenAddress} on ${date}:`, error);
-        return 0;
+        throw new Error(`Error fetching price for ${tokenAddress} on ${date}: ${error}`);
     }
   }
   async fetchTokenPrice(tokenAddress: string, date: string) {
@@ -77,8 +75,7 @@ export class PriceManager {
     }
     const usdPrice = (await withRetry(() => this.callGetHisPrice(tokenAddress, date), 5, 2000)) as number;
     if (usdPrice === 0) {
-      logger.error(`Failed to fetch price for ${tokenAddress} on ${date}`);
-      return 0;
+      throw new Error(`Failed to fetch price for ${tokenAddress} on ${date}`);
     }
     this.prices[cacheKey] = { usd: usdPrice };
     return usdPrice;

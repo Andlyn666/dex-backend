@@ -254,8 +254,6 @@ export async function startAnvilFork() {
   return anvilProcess;
 }
 
-
-await startAnvilFork()
 const watcherUniswap = await initWatcher('uniswap');
 const watcherPancake = await initWatcher('pancake');
 

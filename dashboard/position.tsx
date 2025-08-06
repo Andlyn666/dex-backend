@@ -18,8 +18,7 @@ const poolInfoCache = new Map<string, {
 export async function insertBasicPositionRecord(provider: any, tokenId: string, instance: any, mintEvent: any, user: string) {
     const positionInfo = await getPositionInfo(provider, tokenId, mintEvent);
     if (!positionInfo) {
-        logger.error(`Failed to get position info for tokenId ${tokenId}`);
-        return;
+        throw new Error(`Failed to get position info for tokenId ${tokenId}`);
     }
 
     const poolName = getPoolNameByDexType(instance.dex_type);
@@ -55,8 +54,7 @@ export async function GetPoolAndTickInfoFromTx(
 } | null> {
     const receipt = await withRetry(() => provider.getTransactionReceipt(txHash));
     if (!receipt) {
-        logger.error(`⚠️ Cannot find receipt for ${txHash}`);
-        return null;
+        throw new Error(`⚠️ Cannot find receipt for ${txHash}`);
     }
 
     for (const log of receipt.logs) {
@@ -72,7 +70,7 @@ export async function GetPoolAndTickInfoFromTx(
         }
     }
 
-    logger.error(`⚠️ No Mint event found in tx ${txHash}`);
+    throw new Error(`⚠️ No Mint event found in tx ${txHash}`);
     return null;
 }
 async function GetPoolInfo(poolAddress: string, provider: any) : Promise<{
@@ -105,8 +103,7 @@ async function getPositionInfo(provider, tokenId: string, mintEvent: any) {
 
     const poolAndTickInfo = await GetPoolAndTickInfoFromTx(provider, mintEvent.transactionHash);
     if (!poolAndTickInfo) {
-        logger.error(`⚠️ Failed to get pool info for tokenId ${tokenId}`);
-        return null;
+        throw new Error(`⚠️ Failed to get pool info for tokenId ${tokenId}`);
     }
     let cached = poolInfoCache.get(poolAndTickInfo.poolAddress);
     if (!cached) {
