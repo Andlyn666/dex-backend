@@ -25,7 +25,7 @@ export class PancakePositionWatcher {
     this.rpcUrl = rpcUrl;
     this.positionManager = positionManager;
     this.decimalCache = new Map();
-    this.provider = new ethers.JsonRpcProvider(rpcUrl, { name: 'bsc', chainId: 56 });
+    this.provider = new ethers.JsonRpcProvider(rpcUrl, { name: 'bsc', chainId: 56 }, {staticNetwork: true});
     this.contract = new ethers.Contract(
       positionManager,
       NonfungiblePositionManagerABI,

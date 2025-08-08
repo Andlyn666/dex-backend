@@ -95,8 +95,8 @@ async function testMeteoraSwap() {
 async function testInitWatcher() {
   try {
     const response = await axios.post('http://localhost:3100/init', {
-      poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', // replace with your pool address
-      tokenId: 997991 // replace with your tokenId
+      poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050',
+      dexType: 'pancake',
     });
     console.log('Init watcher response:', response.data);
   } catch (error) {
@@ -111,7 +111,9 @@ async function testInitWatcher() {
 async function testGetTokenAmount() {
   try {
     const response = await axios.get('http://localhost:3100/get-amount', {
-      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050' } // replace with your pool address
+      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', 
+        tokenId: 997991
+       } // replace with your pool address
     });
     console.log('Get token amount response:', response.data);
   } catch (error) {
@@ -138,15 +140,10 @@ async function testGetTokensOwed() {
   }
 }
 
-// ---- Example usage ----
 
 async function runPositionServiceTests() {
   await testInitWatcher();
-  // Wait a bit for watcher to initialize and poll
-  setTimeout(async () => {
-    await testGetTokenAmount();
-    await testGetTokensOwed();
-  }, 4000);
+  await testGetTokenAmount();
 }
 
 runPositionServiceTests();

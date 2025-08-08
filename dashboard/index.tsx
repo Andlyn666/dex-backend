@@ -1,4 +1,5 @@
 import { ethers, EventLog } from "ethers";
+import { ChainId } from "@pancakeswap/chains";
 import pLimit from "p-limit";
 import logger from "./logger";
 import { getParamValue, getAllActivePositions, upsertParamValue } from "./db/queries";
@@ -55,7 +56,7 @@ async function main() {
     dotenv.config();
     await startAnvilFork();
     for (const instance of config.instances) {
-      const provider = new ethers.JsonRpcProvider(instance.rpc_url);
+      const provider = new ethers.JsonRpcProvider(instance.rpc_url, { chainId: ChainId.BSC, name: 'BSC' }, {staticNetwork: true});
       const pm = new ethers.Contract(instance.position_manager_address, PositionManagerABI, provider);
       const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 52000000;
       const latestBlock = 53000000;

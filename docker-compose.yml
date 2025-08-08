@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  position-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pancakeswap-position-service
+    command: tsx dex/pancake-position-service.tsx
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    env_file:
+      - dex/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
