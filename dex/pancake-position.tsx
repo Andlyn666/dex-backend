@@ -1,5 +1,5 @@
 import dotenv from 'dotenv'
-import { ethers, Network } from 'ethers';
+import { ethers } from 'ethers';
 import NonfungiblePositionManagerABI from './abi/NonfungiblePositionManager.json' with { type: 'json' };
 import { PositionMath } from '@pancakeswap/v3-sdk';
 import PoolABI from './abi/PancakeV3Pool.json' with { type: 'json' };
@@ -71,11 +71,11 @@ async getTokenPrice(baseTokenAddress) {
     const price = sqrtRatioX96ToPrice(this.poolInfo.sqrtRatioX96, currency0, currency1);
     let priceWrapped = price.wrapped.toFixed(6);
     if (baseTokenAddress.toLowerCase() === this.token0Address.toLowerCase()) {
-      console.log(`Price of ${currency0.symbol} in ${currency1.symbol}:`, priceWrapped);
+      logger.info(`Price of ${currency0.symbol} in ${currency1.symbol}:`, priceWrapped);
       return priceWrapped;
     } else if (baseTokenAddress.toLowerCase() === this.token1Address.toLowerCase()) {
       priceWrapped = (1 / Number(priceWrapped)).toFixed(6);
-      console.log(`Price of ${currency1.symbol} in ${currency0.symbol}:`, priceWrapped);
+      logger.info(`Price of ${currency1.symbol} in ${currency0.symbol}:`, priceWrapped);
       return priceWrapped;
     }
   }
@@ -88,6 +88,9 @@ async getTokenAmount(tokenId) {
     if (!position) {
       await this.getPositionInfo(tokenId);
       position = this.positionCache.get(tokenId);
+      if (!position) {
+        return { amount0: 0, amount1: 0 };
+      }
     }
     const tickCurrent = Number(this.poolInfo.tick);
     const tickLower = Number(position.tickLower);
@@ -106,9 +109,6 @@ async getTokenAmount(tokenId) {
     // Convert to human-readable values
     const humanToken0Amount = Number(token0Amount) / (10 ** decimals0);
     const humanToken1Amount = Number(token1Amount) / (10 ** decimals1);
-
-    console.log('token0Amount:', humanToken0Amount);
-    console.log('token1Amount:', humanToken1Amount);
     return { amount0: humanToken0Amount, amount1: humanToken1Amount };
 }
 
@@ -122,40 +122,43 @@ async getTokenDecimals(tokenAddress) {
 }
 
   async getPositionInfo(tokenId: string) {
-    const pos = await this.positionMgrContract.positions(tokenId);
-    const info = {
-      nonce: pos.nonce.toString(),
-      operator: pos.operator,
-      token0: pos.token0,
-      token1: pos.token1,
-      fee: pos.fee,
-      tickLower: Number(pos.tickLower),
-      tickUpper: Number(pos.tickUpper),
-      liquidity: pos.liquidity.toString(),
-      feeGrowthInside0LastX128: pos.feeGrowthInside0LastX128.toString(),
-      feeGrowthInside1LastX128: pos.feeGrowthInside1LastX128.toString(),
-      tokensOwed0: pos.tokensOwed0.toString(),
-      tokensOwed1: pos.tokensOwed1.toString(),
-    };
-    this.positionCache.set(tokenId, info);
-    return info;
+    try {
+      const pos = await this.positionMgrContract.positions(tokenId);
+      const info = {
+        nonce: pos.nonce.toString(),
+        operator: pos.operator,
+        token0: pos.token0,
+        token1: pos.token1,
+        fee: pos.fee,
+        tickLower: Number(pos.tickLower),
+        tickUpper: Number(pos.tickUpper),
+        liquidity: pos.liquidity.toString(),
+        feeGrowthInside0LastX128: pos.feeGrowthInside0LastX128.toString(),
+        feeGrowthInside1LastX128: pos.feeGrowthInside1LastX128.toString(),
+        tokensOwed0: pos.tokensOwed0.toString(),
+        tokensOwed1: pos.tokensOwed1.toString(),
+      };
+      this.positionCache.set(tokenId, info);
+      return info;
+    } catch (err) {
+      logger.error(`Error getting position info for tokenId ${tokenId}:`, err);
+    }
   }
 
-  // Use Promise.all to fetch on-chain data in parallel and wait for all before proceeding
-  async getPoolInfo() {
-    if (!this.poolContract) {
-      throw new Error('Pool contract not initialized');
-    }
-    const [poolInfo] = await Promise.all([
-      this.poolContract.slot0()
-    ]);
-    const pool = {
-      sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
-      tick: poolInfo.tick,
-    }
-    this.poolInfo = pool;
-    return pool;
+async getPoolInfo() {
+  if (!this.poolContract) {
+    throw new Error('Pool contract not initialized');
   }
+  const [poolInfo] = await Promise.all([
+    this.poolContract.slot0()
+  ]);
+  const pool = {
+    sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
+    tick: poolInfo.tick,
+  }
+  this.poolInfo = pool;
+  return pool;
+}
 
 async poll() {
   try {
@@ -167,7 +170,7 @@ async poll() {
       })
     ]);
   } catch (err) {
-    console.error('Error in poll:', err);
+    logger.error('Error in poll:', err);
   }
 }
 
@@ -223,11 +226,11 @@ export async function getActivePositions(userAddress) {
   return positions;
 }
 
-const TOKEN_ID_2 = 997991;
-const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
-await initWatcherByPool('pancake', pool_address_2);
-// Now you can get the watcher instance by pool address:
-const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
-watcher2.getTokenAmount(TOKEN_ID_2);
-watcher2.getTokenPrice('0x55d398326f99059fF775485246999027B3197955');
+// const TOKEN_ID_2 = 997991;
+// const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
+// await initWatcherByPool('pancake', pool_address_2);
+// // Now you can get the watcher instance by pool address:
+// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
+// watcher2.getTokenAmount(TOKEN_ID_2);
+// watcher2.getTokenPrice('0x55d398326f99059fF775485246999027B3197955');
 
