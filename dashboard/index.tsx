@@ -12,7 +12,7 @@ import { killAnvilFork, startAnvilFork } from "./pancake-position-mgr";
 import dotenv  from "dotenv";
 
 async function processInstancePositions(instance: any, provider: ethers.Provider, pm: ethers.Contract, fromBlock: number, latestBlock: number) {
-    logger.info(`\n🟢 Chain: ${instance.chain} | PM: ${instance.position_manager_address}`);
+    logger.info(`\n🟢 Chain: ${instance.chain} | PM: ${instance.position_manager_address} from ${fromBlock} to ${latestBlock}`);
     const limit = pLimit(8); 
     await Promise.all(instance.users_to_monitor.map(async (user: string) => {
         logger.info(`  🔍 Checking user: ${user}`);
