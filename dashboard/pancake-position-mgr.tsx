@@ -238,7 +238,7 @@ export async function startAnvilFork() {
 
   const rpcUrl = process.env.RPC_URL || 'https://bsc-dataseed.binance.org/';
   const port = process.env.ANVIL_PORT || '8545';
-  anvilProcess = spawn("anvil", ["-f", rpcUrl, "-p", port, "-q"], {
+  anvilProcess = spawn("anvil", ["-f", rpcUrl, "-p", port, "-q", "--state","anvil-state"], {
     stdio: "inherit",
     detached: true
   });

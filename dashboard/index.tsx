@@ -58,8 +58,8 @@ async function main() {
     for (const instance of config.instances) {
       const provider = new ethers.JsonRpcProvider(instance.rpc_url, { chainId: ChainId.BSC, name: 'BSC' }, {staticNetwork: true});
       const pm = new ethers.Contract(instance.position_manager_address, PositionManagerABI, provider);
-      const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 52000000;
-      const latestBlock = 53000000;
+      const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 56000000;
+      const latestBlock = await provider.getBlockNumber();
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
       await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
       await updatePositionSummary(instance.dex_type, provider);
@@ -68,25 +68,25 @@ async function main() {
     await killAnvilFork();
 }
 
-// async function runMainLoop() {
-//   while (true) {
-//     try {
-//       await main();
-//     } catch (error) {
-//       logger.error("Error in main function:", error);
-//     }
-//     // 等待 30 秒
-//     await new Promise(resolve => setTimeout(resolve, 30000));
-//   }
-// }
-
-// runMainLoop();
 async function runMainLoop() {
+  while (true) {
     try {
-        await main();
+      await main();
     } catch (error) {
-        logger.error("Error in main function:", error);
+      logger.error("Error in main function:", error);
     }
+    // 等待 30 秒
+    await new Promise(resolve => setTimeout(resolve, 30000));
+  }
 }
 
 runMainLoop();
+// async function runMainLoop() {
+//     try {
+//         await main();
+//     } catch (error) {
+//         logger.error("Error in main function:", error);
+//     }
+// }
+
+// runMainLoop();
