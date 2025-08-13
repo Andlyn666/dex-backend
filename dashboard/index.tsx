@@ -1,45 +1,14 @@
-import { ethers, EventLog } from "ethers";
+import { ethers } from "ethers";
 import { ChainId } from "@pancakeswap/chains";
-import pLimit from "p-limit";
 import logger from "./logger";
 import { getParamValue, getAllActivePositions, upsertParamValue } from "./db/queries";
-import { insertBasicPositionRecord} from "./position";
+import { processInstancePositions } from "./position";
 import { trackLpTokenHistory, updatePositionSummary } from "./position-operation";
 import { getPoolNameByDexType } from "./utils";
 import config from "./config.json" with { type: "json" };
 import PositionManagerABI from "../dex/abi/NonfungiblePositionManager.json" with { type: 'json' };
 import { killAnvilFork, startAnvilFork } from "./pancake-position-mgr";
 import dotenv  from "dotenv";
-
-async function processInstancePositions(instance: any, provider: ethers.Provider, pm: ethers.Contract, fromBlock: number, latestBlock: number) {
-    logger.info(`\n🟢 Chain: ${instance.chain} | PM: ${instance.position_manager_address} from ${fromBlock} to ${latestBlock}`);
-    const limit = pLimit(8); 
-    await Promise.all(instance.users_to_monitor.map(async (user: string) => {
-        logger.info(`  🔍 Checking user: ${user}`);
-        const filter = pm.filters.Transfer(ethers.ZeroAddress, user);
-        const chunkSize = 10000;
-        const chunkPromises: Promise<EventLog[]>[] = [];
-        for (let start = fromBlock; start <= latestBlock; start += chunkSize) {
-            const end = Math.min(start + chunkSize - 1, latestBlock);
-            chunkPromises.push(
-                limit(() => pm.queryFilter(filter, start, end) as Promise<EventLog[]>)
-            );
-        }
-        // 并发获取所有chunk事件
-        const chunkResults = await Promise.all(chunkPromises);
-        const foundEvents = chunkResults.flat();
-
-        // 事件处理也可并发
-        await Promise.all(foundEvents.map(event =>
-            limit(async () => {
-                const tokenId = (event as EventLog).args?.tokenId.toString();
-                logger.info(`    🔎 Processing tokenId: ${tokenId}`);
-                await insertBasicPositionRecord(provider, tokenId, instance, event, user);
-            })
-        ));
-    }));
-    logger.info(`  ✅ Finished processing positions for ${instance.chain}`);
-}
 
 async function updatePositionOperations(provider: any, pm: any, fromBlock: number, latestBlock: number, instance: any) {
 
@@ -50,7 +19,6 @@ async function updatePositionOperations(provider: any, pm: any, fromBlock: numbe
     await trackLpTokenHistory(provider, pm, allActivePositions, fromBlock, latestBlock);
     logger.info('✅ Position operations updated successfully');
 }
-
 
 async function main() {
     dotenv.config();
@@ -81,6 +49,7 @@ async function runMainLoop() {
 }
 
 runMainLoop();
+
 // async function runMainLoop() {
 //     try {
 //         await main();

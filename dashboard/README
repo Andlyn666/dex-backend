@@ -1,0 +1,64 @@
+# Dashboard 说明文档
+
+本目录为 PancakeSwap/Uniswap LP 监控与数据服务的后端模块，支持链上 LP position 监听、数据同步、收益分析
+
+## 目录结构
+
+dashboard/
+├── .env                      # 环境变量配置
+├── anvil-state               # anvil本地链快照
+├── config.json               # 监控实例配置（链、池、用户等）
+├── constant.tsx              # 常量定义
+├── dashboard.log             # 日志文件
+├── index.tsx                 # 主入口，定时任务主循环
+├── logger.tsx                # 日志工具
+├── pancake-position-mgr.tsx  # LP position链上数据获取与计算
+├── position-operation.tsx    # position操作与汇总逻辑
+├── position.tsx              # position基础信息处理
+├── README                    # 本说明文档
+├── token.tsx                 # 价格管理与token信息
+├── utils.tsx                 # 通用工具函数
+└── db/
+    ├── dashboard.log         # 数据库日志
+    ├── init-db.tsx          # SQLite表结构初始化
+    ├── init-postgre.tsx     # PostgreSQL表结构初始化
+    ├── pg-client.ts         # PostgreSQL连接
+    ├── queries.tsx          # pg数据库操作
+    ├── type.tsx             # 类型定义
+    └── utils.tsx            # SQLite数据库操作
+
+
+## 主要功能
+
+- **链上监听**：自动监听 LP position 的增减、领取、销毁等事件
+- **收益与资产分析**：计算每个 position 的资产、收益、历史操作等
+- **数据持久化**：支持 PostgreSQL 和 SQLite
+
+## 快速启动
+
+1. **配置环境变量**
+   - 编辑 `.env`，填写数据库、RPC、API KEY 等信息
+
+2. **初始化数据库表结构**
+   - SQLite:
+     ```sh
+     tsx dashboard/db/init-db.tsx
+     ```
+   - PostgreSQL:
+     ```sh
+     tsx dashboard/db/init-postgre.tsx
+     ```
+
+3. **启动主服务**
+   ```sh
+   tsx dashboard/index.tsx
+
+## 主要配置说明
+
+config.json：定义需要监控的链、池、用户等实例
+.env：数据库、RPC、API KEY 等环境变量
+dashboard.log：运行日志
+
+如需自定义监控池或用户，请修改 config.json
+价格数据通过 CoinGecko API 获取，需配置 CG_API_KEY
+日志默认输出到 dashboard.log 和控制台
