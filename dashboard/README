@@ -62,3 +62,57 @@ dashboard.log：运行日志
 如需自定义监控池或用户，请修改 config.json
 价格数据通过 CoinGecko API 获取，需配置 CG_API_KEY
 日志默认输出到 dashboard.log 和控制台
+
+## 主要流程
+
+1. **拉取新的 tokenId（position）**
+
+   - **配置来源**：`config.json` 里定义了需要监控的链、池（position_manager_address）、用户地址等。
+   - **区块范围**：每次循环会读取上次监听到的区块号（如 `last_listen_block_bsc_xxx`），从该区块到最新区块进行扫描。
+   - **事件扫描**：对于每个用户，查询历史 `Transfer(ZeroAddress, user)` 事件（即 NFT mint），批量查询区块区间内的事件，获取所有新铸造的 position NFT 的 tokenId。
+   - **并发优化**：事件查询和处理都用并发控制（如 `pLimit`），提升效率。
+
+2. **统计与汇总逻辑**
+
+   - **操作历史**：对于每个活跃 position，拉取其所有操作历史（增减流动性、Collect 等），并按类型分类。
+   - **资产与收益计算**：遍历所有操作，累加各类资产变动，计算当前持仓、未领取收益、累计收益等。
+   - **价格获取**：每次操作发生时，都会通过 CoinGecko API 获取当时的 token 美元价格，精确计算历史价值。
+   - **当前状态**：根据链上最新状态，计算 position 是否活跃、当前资产、未领取收益等。
+   - **持久化**：所有统计结果写入 `lp_strategy_snapshots` 表，便于后续查询和 API 服务。
+
+3. **定时循环与区块推进**
+
+   - **主循环**：`index.tsx` 里的 `runMainLoop()` 每 30 秒自动执行一次全流程，包括拉取新 position、统计历史、更新快照。
+   - **区块推进**：每次统计后，更新 `last_listen_block_bsc_xxx`，下次只处理新块，避免重复。
+
+
+## 主要计算逻辑
+
+1. **操作历史遍历与分类**
+   - 遍历每个 position 的所有操作记录（IncreaseLiquidity、DecreaseLiquidity、Collect）。
+   - 按操作类型分别累计投入、取出、领取等金额和价值。
+
+2. **资产与收益累计**
+   - **投入统计**：累计所有 IncreaseLiquidity 操作的 base/quote 数量和对应美元价值。
+   - **取出统计**：累计所有 DecreaseLiquidity 操作的 base/quote 数量和对应美元价值。
+   - **领取统计**：累计所有 Collect 操作的 base/quote 数量和对应美元价值。
+
+3. **当前状态与未领取收益**
+   - 通过链上实时查询，获取当前 position 的 base/quote 数量、未领取 fee。
+   - 计算当前持仓价值（base/quote 数量 × 当前价格）。
+   - 计算未领取 fee 的美元价值。
+
+4. **复合指标计算**
+   - **总投入价值** = 投入 base 价值 + 投入 quote 价值
+   - **总领取价值** = 领取 base 价值 + 领取 quote 价值
+   - **总取出价值** = 取出 base 价值 + 取出 quote 价值
+   - **已领取手续费** = 领取 - 取出
+   - **总收益（USD）** = 未领取 fee 价值 + 总领取价值 + 当前持仓价值 - 总投入价值
+   - **收益率（%）** = 总收益 / 总投入 × 100
+
+5. **状态判断与持仓时长**
+   - 判断 currentLiquidity 是否大于 0，决定 position 是否活跃。
+   - 计算持仓时长（活跃时为当前时间-创建时间，非活跃时为结束区块时间-创建时间）。
+
+6. **数据持久化**
+   - 将所有统计结果（包括各类金额、价值、收益率、活跃状态、持仓时长等）写入数据库快照表，供后续查询和分析。
