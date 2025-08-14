@@ -109,14 +109,14 @@ async getTokenAmount(tokenId, baseAddress, quoteAddress) {
     // If baseAddress is token0, return token0Amount and token1Amount
     if (baseAddress.toLowerCase() === this.token0Address.toLowerCase() && quoteAddress.toLowerCase() === this.token1Address.toLowerCase()) {
       return {
-        baseAmount: (token0Amount / BigInt(10 ** decimals0)).toString(),
-        quoteAmount: (token1Amount / BigInt(10 ** decimals1)).toString()
+        baseAmount: (Number(token0Amount) / 10 ** decimals0).toString(),
+        quoteAmount: (Number(token1Amount) / 10 ** decimals1).toString()
       };
     } else if (baseAddress.toLowerCase() === this.token1Address.toLowerCase() && quoteAddress.toLowerCase() === this.token0Address.toLowerCase()) {
       // If baseAddress is token1, return token1Amount and token0Amount
       return {
-        baseAmount: (token1Amount / BigInt(10 ** decimals1)).toString(),
-        quoteAmount: (token0Amount / BigInt(10 ** decimals0)).toString()
+        baseAmount: (Number(token1Amount) / 10 ** decimals1).toString(),
+        quoteAmount: (Number(token0Amount) / 10 ** decimals0).toString()
       };
     } else {
       throw new Error(`Base address ${baseAddress} or quote address ${quoteAddress} does not match position token addresses`);
