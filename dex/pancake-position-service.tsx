@@ -30,12 +30,12 @@ app.post('/init', async (req, res) => {
 // Get token amounts for a given pool
 app.get('/get-amount', async (req, res) => {
   try {
-    const { poolAddress, tokenId } = req.query;
+    const { poolAddress, tokenId, baseAddress, quoteAddress } = req.query;
     if (!poolAddress) {
       return res.status(400).json({ error: 'poolAddress is required' });
     }
     const watcher = PancakePositionWatcher.getWatcherByPool(poolAddress);
-    const result = await watcher.getTokenAmount(tokenId);
+    const result = await watcher.getTokenAmount(tokenId, baseAddress, quoteAddress);
     res.json(result);
   } catch (error) {
     console.error('Error getting token amount:', error);

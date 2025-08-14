@@ -80,7 +80,7 @@ async getTokenPrice(baseTokenAddress) {
     }
   }
 
-async getTokenAmount(tokenId) {
+async getTokenAmount(tokenId, baseAddress, quoteAddress) {
     let position = this.positionCache.get(tokenId);
     if (!this.poolInfo) {
       await this.getPoolInfo();
@@ -106,10 +106,22 @@ async getTokenAmount(tokenId) {
     const token0Amount = PositionMath.getToken0Amount(tickCurrent, tickLower, tickUpper, sqrtRatioX96, liquidity);
     const token1Amount = PositionMath.getToken1Amount(tickCurrent, tickLower, tickUpper, sqrtRatioX96, liquidity);
 
-    // Convert to human-readable values
-    const humanToken0Amount = Number(token0Amount) / (10 ** decimals0);
-    const humanToken1Amount = Number(token1Amount) / (10 ** decimals1);
-    return { amount0: humanToken0Amount, amount1: humanToken1Amount };
+    // If baseAddress is token0, return token0Amount and token1Amount
+    if (baseAddress.toLowerCase() === this.token0Address.toLowerCase() && quoteAddress.toLowerCase() === this.token1Address.toLowerCase()) {
+      return {
+        baseAmount: (token0Amount / BigInt(10 ** decimals0)).toString(),
+        quoteAmount: (token1Amount / BigInt(10 ** decimals1)).toString()
+      };
+    } else if (baseAddress.toLowerCase() === this.token1Address.toLowerCase() && quoteAddress.toLowerCase() === this.token0Address.toLowerCase()) {
+      // If baseAddress is token1, return token1Amount and token0Amount
+      return {
+        baseAmount: (token1Amount / BigInt(10 ** decimals1)).toString(),
+        quoteAmount: (token0Amount / BigInt(10 ** decimals0)).toString()
+      };
+    } else {
+      throw new Error(`Base address ${baseAddress} or quote address ${quoteAddress} does not match position token addresses`);
+    }
+      
 }
 
 async getTokenDecimals(tokenAddress) {
@@ -226,11 +238,11 @@ export async function getActivePositions(userAddress) {
   return positions;
 }
 
-// const TOKEN_ID_2 = 997991;
-// const pool_address_2 = '0x36696169C63e42cd08ce11f5deeBbCeBae652050'; // Replace with your actual pool address
+// const TOKEN_ID_2 = 3468960;
+// const pool_address_2 = '0x43256d0dCC2571E564311edb6D7e8F076a72Fc46'; // Replace with your actual pool address
 // await initWatcherByPool('pancake', pool_address_2);
 // // Now you can get the watcher instance by pool address:
 // const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
-// watcher2.getTokenAmount(TOKEN_ID_2);
-// watcher2.getTokenPrice('0x55d398326f99059fF775485246999027B3197955');
+// const amount = await watcher2.getTokenAmount(TOKEN_ID_2, '0xe50E3d1A46070444F44df911359033F2937fcC13', '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
+// console.log(`Token amount for tokenId ${TOKEN_ID_2}:`, amount);
 
