@@ -220,16 +220,16 @@ export async function killAnvilFork() {
       logger.info("Anvil fork killed successfully.");
     } catch (error) {
       logger.error("Failed to kill anvil fork:", error);
+      await execAsync("killall -9 anvil");
+      logger.info("Anvil fork killed by killall.");
     }
   } else {
-    // 兜底：如果没有记录进程对象，仍可用 pkill
+    // 兜底：如果没有记录进程对象，仍可用 killall
     try {
-      const { stdout, stderr } = await execAsync("pkill -f anvil || true");
-      if (stdout) logger.info(stdout);
-      if (stderr) logger.error(stderr);
-      logger.info("Anvil fork killed by pkill.");
+      await execAsync("killall -9 anvil");
+      logger.info("Anvil fork killed by killall.");
     } catch (error) {
-      logger.error("Failed to kill anvil fork by pkill:", error);
+      logger.error("Failed to kill anvil fork by killall:", error);
     }
   }
 }
