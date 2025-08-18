@@ -22,18 +22,16 @@ async function updatePositionOperations(provider: any, pm: any, fromBlock: numbe
 
 async function main() {
     dotenv.config();
-    await startAnvilFork();
     for (const instance of config.instances) {
       const provider = new ethers.JsonRpcProvider(instance.rpc_url, { chainId: ChainId.BSC, name: 'BSC' }, {staticNetwork: true});
       const pm = new ethers.Contract(instance.position_manager_address, PositionManagerABI, provider);
-      const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 56000000;
+      const fromBlock = Number(await getParamValue("last_listen_block_bsc_"+ instance.dex_type)) || 57000000;
       const latestBlock = await provider.getBlockNumber();
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
       await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
       await updatePositionSummary(instance.dex_type, provider);
       await upsertParamValue("last_listen_block_bsc_"+ instance.dex_type, latestBlock.toString());
     }
-    await killAnvilFork();
 }
 
 async function runMainLoop() {
