@@ -3,8 +3,6 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
 import { LpStrategySnapshotParams, LpOperationParams } from './type';
-import logger from '../logger';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

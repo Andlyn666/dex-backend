@@ -34,16 +34,8 @@ export class PancakePositionWatcher {
     this.poolAbi = poolAbi;
   }
 
-async getTokenAmountWithAddress(tokenId, poolAddress) {
+async getTokenAmountWithAddress(tokenId, pool, position) {
   try {
-    const poolMgrContract = new ethers.Contract(this.positionManager, NonfungiblePositionManagerABI, this.provider);
-    const position = await this.getPositionInfo(tokenId, poolMgrContract);
-    if (!position || !position.tickLower) {
-      logger.warn(`Position not found for tokenId ${tokenId}`);
-      return [{address: '', amount: 0}, {address: '', amount: 0}];
-    }
-    const contract = new ethers.Contract(poolAddress, this.poolAbi, this.provider);
-    const pool = await this.getPoolInfo(position, contract);
     const tickCurrent = Number(pool.tick);
     const tickLower = Number(position.tickLower);
     const tickUpper = Number(position.tickUpper);
@@ -84,21 +76,11 @@ async getTokenDecimals(tokenAddress) {
     this.decimalCache.set(tokenAddress,Number(decimals));
     return Number(decimals);
 }
-async getTokensOwedWithAddress(tokenId, poolAddress) {
+async getTokensOwedWithAddress(tokenId, pool, position) {
   try {
-    const poolMgrContract = new ethers.Contract(this.positionManager, NonfungiblePositionManagerABI, this.provider);
-    const position = await this.getPositionInfo(tokenId, poolMgrContract);
-    if (!position || !position.tickLower) {
-      logger.warn(`Position not found for tokenId ${tokenId}`);
-      return [{address: '', amount: 0}, {address: '', amount: 0}];
-    }
-    const contract = new ethers.Contract(poolAddress, PoolABI, this.provider);
-    const pool = await this.getPoolInfo(position, contract);
-    const tickCurrent = pool.tick;
-    const [tickLowerData, tickUpperData] = await Promise.all([
-      this.getTickData(position.tickLower, contract),
-      this.getTickData(position.tickUpper, contract)
-    ]);
+    const tickLowerData = pool.tickLower;
+    const tickUpperData = pool.tickUpper;
+    const tickCurrent = Number(pool.tick);
     if (!tickLowerData || !tickUpperData) {
       logger.warn('Tick data not found for tickLower or tickUpper');
       return [{address: '', amount: 0}, {address: '', amount: 0}];
@@ -144,10 +126,10 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
   return [{address: '', amount: 0}, {address: '', amount: 0}];
 }
 
-  async getPositionInfo(tokenId, contract) {
+  async getPositionInfo(tokenId, blockNumber) {
     let info;
     try {
-      const pos = await contract.positions(BigInt(tokenId));
+      const pos = await this.contract.positions(BigInt(tokenId), { blockTag: blockNumber });
       info = {
         nonce: pos.nonce.toString(),
         operator: pos.operator,
@@ -169,17 +151,17 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
   }
 
   // Use Promise.all to fetch on-chain data in parallel and wait for all before proceeding
-  async getPoolInfo(pos, contract) {
-    
+  async getPoolInfo(pos, contract, blockNumber) {
+
     let pool;
     try {
       // Fetch slot0 and fee growths in parallel
       const [poolInfo, feeGrowthGlobal0X128, feeGrowthGlobal1X128, tickLowerData, tickUpperData] = await Promise.all([
-        contract.slot0(),
-        contract.feeGrowthGlobal0X128(),
-        contract.feeGrowthGlobal1X128(),
-        this.getTickData(Number(pos.tickLower), contract),
-        this.getTickData(Number(pos.tickUpper), contract)
+        contract.slot0({ blockTag: blockNumber}),
+        contract.feeGrowthGlobal0X128({ blockTag: blockNumber }),
+        contract.feeGrowthGlobal1X128({ blockTag: blockNumber }),
+        this.getTickData(Number(pos.tickLower), contract, blockNumber),
+        this.getTickData(Number(pos.tickUpper), contract, blockNumber)
       ]);
       pool = {
         sqrtRatioX96: poolInfo.sqrtPriceX96.toString(),
@@ -194,8 +176,8 @@ async getTokensOwedWithAddress(tokenId, poolAddress) {
     }
     return pool;
   }
-  async getTickData(tick, contract) {
-    const tickData = await contract.ticks(tick);
+  async getTickData(tick, contract, blockNumber) {
+    const tickData = await contract.ticks(tick, { blockTag: blockNumber });
     return tickData
   }
 }
@@ -260,23 +242,31 @@ export async function startAnvilFork() {
 const watcherUniswap = await initWatcher('uniswap');
 const watcherPancake = await initWatcher('pancake');
 
-export async function getTokenAmount(poolAddress: string, tokenId: string, dexType: string) {
-  if (dexType === 'pancake') {
-    return await watcherPancake.getTokenAmountWithAddress(tokenId, poolAddress);
-  } else if (dexType === 'uniswap') {
-    return await watcherUniswap.getTokenAmountWithAddress(tokenId, poolAddress);
-  } else {
-    throw new Error(`Unsupported dex type: ${dexType}`);
-  }
-}
-
-// 获取 tokens owed
-export async function getTokensOwed(poolAddress: string, tokenId: string, dexType) {
-  if (dexType === 'pancake') {
-    return await watcherPancake.getTokensOwedWithAddress(tokenId, poolAddress);
-  } else if (dexType === 'uniswap') {
-    return await watcherUniswap.getTokensOwedWithAddress(tokenId, poolAddress);
-  } else {
-    throw new Error(`Unsupported dex type: ${dexType}`);
-  }
+export async function getTokensOwedAndAmounts(poolAddress: string, tokenId: string, dexType, latestBlock: number) {
+    if (dexType === 'pancake') {
+        const position = await watcherPancake.getPositionInfo(tokenId, latestBlock);
+        if (!position || !position.tickLower) {
+          logger.warn(`Position not found for tokenId ${tokenId}`);
+          return [{address: '', amount: 0},{address: '', amount: 0},{address: '', amount: 0},{address: '', amount: 0}];
+        }
+        const contract = new ethers.Contract(poolAddress, watcherPancake.poolAbi, watcherPancake.provider);
+        const pool = await watcherPancake.getPoolInfo(position, contract, latestBlock);
+        const [tokenOwed0, tokenOwed1] = await watcherPancake.getTokensOwedWithAddress(tokenId, pool, position);
+        const [amount1, amount2] = await watcherPancake.getTokenAmountWithAddress(tokenId, pool, position);
+        return[tokenOwed0, tokenOwed1, amount1, amount2];
+    }
+    else if (dexType === 'uniswap') {
+        const position = await watcherUniswap.getPositionInfo(tokenId, latestBlock);
+        if (!position || !position.tickLower) {
+          logger.warn(`Position not found for tokenId ${tokenId}`);
+          return [{address: '', amount: 0},{address: '', amount: 0},{address: '', amount: 0},{address: '', amount: 0}];
+        }
+        const contract = new ethers.Contract(poolAddress, watcherUniswap.poolAbi, watcherUniswap.provider);
+        const pool = await watcherUniswap.getPoolInfo(position, contract, latestBlock);
+        const [tokenOwed0, tokenOwed1] = await watcherUniswap.getTokensOwedWithAddress(tokenId, pool, position);
+        const [amount1, amount2] = await watcherUniswap.getTokenAmountWithAddress(tokenId, pool, position);
+        return[tokenOwed0, tokenOwed1, amount1, amount2];
+    } else {
+        throw new Error(`Unsupported dex type: ${dexType}`);
+    }
 }

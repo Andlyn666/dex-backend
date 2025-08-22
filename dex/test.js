@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { stopAllWatchers } from './pancake-position.tsx';
 
 async function testFetchPools() {
   try {
@@ -111,8 +112,12 @@ async function testInitWatcher() {
 async function testGetTokenAmount() {
   try {
     const response = await axios.get('http://localhost:3100/get-amount', {
-      params: { poolAddress: '0x36696169C63e42cd08ce11f5deeBbCeBae652050', 
-        tokenId: 997991
+      params: {
+        poolAddress: '0x43256d0dCC2571E564311edb6D7e8F076a72Fc46', 
+        dexType: 'pancake',
+        baseAddress: '0xe50E3d1A46070444F44df911359033F2937fcC13',
+        quoteAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+        tokenId: 3470300
        } // replace with your pool address
     });
     console.log('Get token amount response:', response.data);
@@ -142,7 +147,9 @@ async function testGetTokensOwed() {
 
 
 async function runPositionServiceTests() {
-  await testInitWatcher();
+  await testGetTokenAmount();
+  // wait for watcher removed
+  await new Promise(resolve => setTimeout(resolve, 5000));
   await testGetTokenAmount();
 }
 

@@ -37,13 +37,31 @@ export class PancakePositionWatcher {
     this.poolContract = new ethers.Contract(poolAddress, PoolABI, provider);
     this.interval = null;
   }
+
+static async initWatcherByPool(dexType, poolAddress) {
+  let position_manager;
+  if (dexType == 'pancake') {
+    position_manager = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
+  } else if (dexType == 'uniswap') {
+    position_manager = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
+  }
+  const watcher = new PancakePositionWatcher(position_manager, poolAddress);
+  const key = poolAddress.toLowerCase();
+  PancakePositionWatcher.watcherInstances.set(key, watcher);
+  await watcher.start(3000);
+  await watcher.poll();
+  return watcher;
+}
 // return watcher instances for specific pools and tokenIds
-static getWatcherByPool(poolAddress) {
+static async getWatcherByPool(poolAddress, dexType) {
   const key = poolAddress.toLowerCase();
   if (PancakePositionWatcher.watcherInstances.has(key)) {
     return PancakePositionWatcher.watcherInstances.get(key);
   } else {
-    throw new Error(`Watcher for pool ${poolAddress} not found`);
+    // create a new watcher instance
+    logger.info(`Creating new watcher for pool ${poolAddress} with dexType ${dexType}`);
+    await PancakePositionWatcher.initWatcherByPool(dexType, poolAddress);
+    return PancakePositionWatcher.watcherInstances.get(key);
   }
 }
 
@@ -197,30 +215,23 @@ async poll() {
       clearInterval(this.interval);
       this.interval = null;
     }
+    logger.info(`PositionWatcher stopped`);
   }
 }
 
-export async function initWatcherByPool(dexType, poolAddress) {
-  let position_manger;
-  if (dexType == 'pancake') {
-    position_manger = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
-  } else if (dexType == 'uniswap') {
-    position_manger = '0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613';
+export async function stopAllWatchers() {
+  for (const watcher of PancakePositionWatcher.watcherInstances.values()) {
+    watcher.stop();
   }
-  const watcher = new PancakePositionWatcher(position_manger, poolAddress);
-  const key = poolAddress.toLowerCase();  
-  PancakePositionWatcher.watcherInstances.set(key, watcher);
-  await watcher.start(3000);
-  await watcher.poll();
-  return watcher;
+  // remove all watchers from the map
+  PancakePositionWatcher.watcherInstances.clear();
 }
 
 // get position from postgres database table
 export async function getActivePositions(userAddress) {
   const positions: Array<{ tokenId: string; base_token_address: string; quote_token_address: string; pool_address: string; current_base_amount: string; current_quote_amount: string; pool_name: string }> = [];
   const query = `
-    SELECT base_token_address, quote_token_address, position_token_id, pool_address, current_base_amount, current_quote_amount, pool_name from lp_strategy_snapshots
-    WHERE is_active = true AND owner = $1
+    SELECT base_token_address, quote_token_address, position_token_id, pool_address, current_base_amount, current_quote_amount, pool_name from lp_strategy_snapshots WHERE is_active = true AND owner = $1
   `;
   const result = await db.query(query, [userAddress]);
   for (const row of result.rows) {
@@ -238,11 +249,10 @@ export async function getActivePositions(userAddress) {
   return positions;
 }
 
-// const TOKEN_ID_2 = 3468960;
-// const pool_address_2 = '0x43256d0dCC2571E564311edb6D7e8F076a72Fc46'; // Replace with your actual pool address
-// await initWatcherByPool('pancake', pool_address_2);
+// const TOKEN_ID_2 = 3470300;
+// const pool_address_2 = '0x43256d0dCC2571E564311edb6D7e8F076a72Fc46'; //
 // // Now you can get the watcher instance by pool address:
-// const watcher2 = PancakePositionWatcher.getWatcherByPool(pool_address_2);
+// const watcher2 = await PancakePositionWatcher.getWatcherByPool(pool_address_2, 'pancake');
 // const amount = await watcher2.getTokenAmount(TOKEN_ID_2, '0xe50E3d1A46070444F44df911359033F2937fcC13', '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
 // console.log(`Token amount for tokenId ${TOKEN_ID_2}:`, amount);
 

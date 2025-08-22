@@ -68,7 +68,7 @@ export class PriceManager {
         throw new Error(`Error fetching price for ${tokenAddress} on ${date}: ${error}`);
     }
   }
-  async fetchTokenPrice(tokenAddress: string, date: string) {
+  async fetchHisTokenPrice(tokenAddress: string, date: string) {
     const cacheKey = `${tokenAddress.toLowerCase()}_${date}`;
     if (this.prices[cacheKey]) {
       return this.prices[cacheKey].usd;
@@ -79,6 +79,39 @@ export class PriceManager {
     }
     this.prices[cacheKey] = { usd: usdPrice };
     return usdPrice;
+  }
+
+  async fetchCurrentTokenPrice(tokenAddress: string) {
+    const url = 'https://pro-api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses=' + tokenAddress + '&vs_currencies=usd';
+    const options = {
+      headers: {accept: 'application/json', 'x-cg-pro-api-key': this.key},
+      timeout: 5000 // 5秒超时
+    };
+    try {
+      const response = await axios.get(url, options);
+      const data = response.data;
+      if (data[tokenAddress.toLowerCase()]) {
+        this.prices[tokenAddress.toLowerCase()] = { usd: data[tokenAddress.toLowerCase()].usd };
+        return this.prices[tokenAddress.toLowerCase()].usd;
+      } else {
+        throw new Error(`Price for ${tokenAddress} not found`);
+      }
+    } catch (error) {
+      throw new Error(`Error fetching current price for ${tokenAddress}: ${error}`);
+    }
+
+  }
+
+  async getCurrentTokenPrice(tokenAddress: string) {
+    const cacheKey = tokenAddress.toLowerCase();
+    if (this.prices[cacheKey]) {
+      return this.prices[cacheKey].usd;
+    } else {
+      const price = await withRetry(() => this.fetchCurrentTokenPrice(tokenAddress), 5, 2000);
+      if (price === 0) {
+        throw new Error(`Failed to fetch current price for ${tokenAddress}`);
+      }
+    }
   }
 }
 

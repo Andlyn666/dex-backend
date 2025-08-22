@@ -1,7 +1,7 @@
 import { EventLog, ethers } from "ethers";
 import pLimit from "p-limit";
 import { getBlockTimestamp, convertBlockTimetoDate, withRetry, getTokenDecimals } from "./utils";
-import { getTokensOwed, getTokenAmount } from "./pancake-position-mgr";
+import { getTokensOwedAndAmounts } from "./pancake-position-mgr";
 import { updatePositionRecord, getAllActivePositions, insertManyOperations, getOperationsByTokenId } from "./db/queries";
 import { LpOperationParams, LpStrategySnapshotParams } from "./db/type";
 import { getTokenPriceManager } from "./token";
@@ -18,8 +18,8 @@ export async function insertOperationHisRecord(provider, priceMgr, pm, position,
         for (const e of incEvents) {
             const blockTime = await withRetry(() => getBlockTimestamp(provider, Number(e.blockNumber)));
         const [ basePriceHis, quotePriceHis, baseDecimals, quoteDecimals] = await Promise.all([
-                priceMgr.fetchTokenPrice(position.baseTokenAddress, convertBlockTimetoDate(blockTime)),
-                priceMgr.fetchTokenPrice(position.quoteTokenAddress, convertBlockTimetoDate(blockTime)),
+                priceMgr.fetchHisTokenPrice(position.baseTokenAddress, convertBlockTimetoDate(blockTime)),
+                priceMgr.fetchHisTokenPrice(position.quoteTokenAddress, convertBlockTimetoDate(blockTime)),
                 getTokenDecimals(position.baseTokenAddress, provider),
                 getTokenDecimals(position.quoteTokenAddress, provider)
             ]);
@@ -67,7 +67,7 @@ export async function trackLpTokenHistory(provider, pm: ethers.Contract, positio
     logger.info("\n✅ LP token operation history extraction completed.");
 }
 
-export async function updatePositionSummary(dexType, provider) {
+export async function updatePositionSummary(dexType, provider, latestBlock) {
     logger.info(`🔄 Updating position ${dexType} summary...`);
     const poolName = getPoolNameByDexType(dexType);
     const allActivePositions = await getAllActivePositions(poolName);
@@ -103,13 +103,11 @@ export async function updatePositionSummary(dexType, provider) {
         let total_add_value_usd = 0;
 
         const priceMgr = getTokenPriceManager(BSC_CG_NAME);
-        const date = convertBlockTimetoDate(Date.now()); // 使用当前时间作为日期
         // get current base and quote prices
-        const [basePrice, quotePrice, [tokenOwed0, tokenOwed1], [amount1, amount2]] = await Promise.all([
-            priceMgr.fetchTokenPrice(position.baseTokenAddress, date),
-            priceMgr.fetchTokenPrice(position.quoteTokenAddress, date),
-            getTokensOwed(poolAddress, tokenId, dexType),
-            getTokenAmount(poolAddress, tokenId, dexType)
+        const [basePrice, quotePrice, [tokenOwed0, tokenOwed1, amount1, amount2]] = await Promise.all([
+            priceMgr.fetchCurrentTokenPrice(position.baseTokenAddress),
+            priceMgr.fetchCurrentTokenPrice(position.quoteTokenAddress),
+            getTokensOwedAndAmounts(poolAddress, tokenId, dexType, latestBlock),
 
         ]);
         for (const op of ops) {

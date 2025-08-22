@@ -1,5 +1,7 @@
 import logger from "./logger";
 import { ethers } from "ethers";
+import { updatePoolInfo, getPoolAddressNotInPoolInfo } from "./db/queries";
+import PoolABI from '../dex/abi/PancakeV3Pool.json' with { type: 'json' };
 
 export function getPoolNameByDexType(dexType) {
     if (dexType === "pancake") {
@@ -8,6 +10,16 @@ export function getPoolNameByDexType(dexType) {
         return "Uniswap V3";
     } else {
         throw new Error("Unsupported DEX type", dexType);
+    }
+}
+
+export function getDexTypeByPoolName(poolName) {
+    if (poolName === "PancakeSwap V3") {
+        return "pancake";
+    } else if (poolName === "Uniswap V3") {
+        return "uniswap";
+    } else {
+        throw new Error("Unsupported pool name", poolName);
     }
 }
 
@@ -105,8 +117,9 @@ export function convertBlockTimetoDate(blockTime: string | number): string {
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
 }
-  const decimalCache = new Map();
-  export async function getTokenDecimals(tokenAddress, provider) {
+  
+const decimalCache = new Map();
+export async function getTokenDecimals(tokenAddress, provider) {
     if (decimalCache.has(tokenAddress)) {
         return Number(decimalCache.get(tokenAddress));
     }
@@ -117,4 +130,18 @@ export function convertBlockTimetoDate(blockTime: string | number): string {
     const decimals = await withRetry(() => tokenContract.decimals());
     decimalCache.set(tokenAddress, Number(decimals));
     return Number(decimals);
+}
+
+export async function batchUpdatePoolInfo(dexType: string, provider: any) {
+    const poolName = getPoolNameByDexType(dexType);
+    const poolAddresses = await getPoolAddressNotInPoolInfo(poolName);
+    for (const poolAddress of poolAddresses) {
+        try {
+            const poolContract = new ethers.Contract(poolAddress, PoolABI, provider);
+            const fee = await withRetry(() => poolContract.fee());
+            await updatePoolInfo(poolAddress, dexType, fee);
+        } catch (error) {
+            throw new Error(`Failed to update pool info for ${poolAddress}: ${error}`);
+        }
+    }
 }

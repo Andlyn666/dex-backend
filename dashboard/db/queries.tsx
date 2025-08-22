@@ -1,6 +1,7 @@
 import { pool } from './pg-client';
 import { LpStrategySnapshotParams, LpOperationParams } from './type';
 import logger from '../logger';
+import { Pool } from 'pg';
 
 export async function getParamValue(paramKey: string): Promise<string | null> {
     const result = await pool.query(`SELECT param_value FROM lp_parameters WHERE param_key = $1`, [paramKey]);
@@ -153,5 +154,29 @@ export async function getOperationsByTokenId(poolAddress: string, tokenId: strin
     } catch (error) {
         console.error('❌ Error fetching lp_operations:', error);
         return [];
+    }
+}
+
+export async function updatePoolInfo(poolAddress: string, poolType: string, fee: number) {
+    try {
+        const query = `
+            INSERT INTO lp_pool_info (pool_address, pool_type, fee)
+            VALUES ($1, $2, $3)
+            ON CONFLICT(pool_address) DO UPDATE SET pool_type = EXCLUDED.pool_type, fee = EXCLUDED.fee
+        `;
+        await pool.query(query, [poolAddress, poolType, fee]);
+        return true;
+    } catch (error) {
+        throw new Error(`Error updating pool info: ${error}`);
+    }
+}
+
+export async function getPoolAddressNotInPoolInfo(poolName: string): Promise<string[]> {
+    try {
+        const query = `SELECT DISTINCT pool_address FROM lp_strategy_snapshots WHERE pool_name = $1 AND pool_address NOT IN (SELECT pool_address FROM lp_pool_info)`;
+        const result = await pool.query(query, [poolName]);
+        return result.rows.map(row => row.pool_address);
+    } catch (error) {
+        throw new Error(`Error fetching pool addresses not in lp_pool_info: ${error}`);
     }
 }

@@ -4,7 +4,7 @@ import logger from "./logger";
 import { getParamValue, getAllActivePositions, upsertParamValue } from "./db/queries";
 import { processInstancePositions } from "./position";
 import { trackLpTokenHistory, updatePositionSummary } from "./position-operation";
-import { getPoolNameByDexType } from "./utils";
+import { getPoolNameByDexType, batchUpdatePoolInfo } from "./utils";
 import config from "./config.json" with { type: "json" };
 import PositionManagerABI from "../dex/abi/NonfungiblePositionManager.json" with { type: 'json' };
 import { killAnvilFork, startAnvilFork } from "./pancake-position-mgr";
@@ -29,8 +29,9 @@ async function main() {
       const latestBlock = await provider.getBlockNumber();
       await processInstancePositions(instance, provider, pm, fromBlock, latestBlock);
       await updatePositionOperations(provider, pm, fromBlock, latestBlock, instance);
-      await updatePositionSummary(instance.dex_type, provider);
+      await updatePositionSummary(instance.dex_type, provider, latestBlock);
       await upsertParamValue("last_listen_block_bsc_"+ instance.dex_type, latestBlock.toString());
+      await batchUpdatePoolInfo(instance.dex_type, provider);
     }
 }
 

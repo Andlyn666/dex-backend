@@ -93,6 +93,15 @@ async function initPostgres() {
       );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lp_pool_info (
+          id SERIAL PRIMARY KEY,
+          pool_address TEXT UNIQUE,
+          pool_type TEXT,
+          fee REAL
+      );
+    `);
+
     logger.info('PostgreSQL tables initialized successfully.');
   } catch (error) {
     logger.error('Error initializing PostgreSQL tables:', error);
